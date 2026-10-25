@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Heart Vector</title>
+<style>
+  :root {
+    --bg: #faf9f5; --panel: #ffffff; --text: #1f1e1d; --muted: #6b6a65; --border: #e3e1d9;
+    --grid: #f0d6d0; --trace: #1f1e1d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a18; --panel: #232321; --text: #ecebe6; --muted: #a3a29c; --border: #3a3a36;
+      --grid: #3d2a26; --trace: #ecebe6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+  @media (max-width: 800px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  #scene { width: 100%; height: 440px; display: block; border-radius: 8px; cursor: grab; }
+  #strips { width: 100%; height: 440px; display: block; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; font-size: 14px; }
+  button, select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); cursor: pointer; }
+  .phase { font-weight: 600; min-width: 220px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>3D heart vector</h1>
+  <p class="sub" id="source"></p>
+  <div class="layout">
+    <div class="card">
+      <canvas id="scene"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:#3b8bd4"></span>P wave</span>
+        <span><span class="dot" style="background:#d85a30"></span>QRS</span>
+        <span><span class="dot" style="background:#1d9e75"></span>T wave</span>
+        <span>Lead lines: green = wave coming toward it, orange = going away</span>
+      </div>
+    </div>
+    <div class="card"><canvas id="strips"></canvas></div>
+  </div>
+  <div class="controls">
+    <button id="play">Pause</button>
+    <label>Speed
+      <select id="speed">
+        <option value="0.1">0.1x</option>
+        <option value="0.25" selected>0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1">1x (real time)</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="showLeads" checked> Show lead directions</label>
+    <span class="phase" id="phase"></span>
+  </div>
+</main>
+
+<script>
+  // Pick the data file from the URL, e.g. viewer.html?data=ecg_data_real.js (defaults to the synthetic one).
+  const dataFile = new URLSearchParams(location.search).get("data") || "ecg_data.js";
+  if (/^[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const D = window.ECG_DATA;
+const N = D.vector[0].length;
+const PHASE_COLORS = [0x888780, 0x3b8bd4, 0xd85a30, 0x1d9e75];
+const PHASE_TEXT = ["Between beats", "P wave: atria firing", "QRS: ventricles firing", "T wave: ventricles resetting"];
+// Scale so the biggest heart vector reaches ~2 scene units, whatever the recording's amplitude.
+const maxMag = Math.max(...D.vector[0].map((_, i) => Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i])));
+const SCALE = 2 / maxMag;
+const maxLead = Math.max(...D.leads.flat().map(Math.abs));
+document.getElementById("source").textContent =
+  `${D.source}. Drag to rotate, scroll to zoom. Viewed from the front of the patient.`;
+
+// Frank (x left, y feet, z back) -> three.js (x right on screen = patient's left, y up, z towards viewer = front)
+const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z);
+const vecAt = i => toScene(D.vector[0][i], D.vector[1][i], D.vector[2][i]).multiplyScalar(SCALE);
+
+// --- 3D scene ---
+const canvas = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(2.2, 1.2, 5.2);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(3, 4, 5);
+scene.add(sun);
+
+// Stand-in heart: a tilted ellipsoid, apex pointing down-left like the real one.
+const heart = new THREE.Mesh(
+  new THREE.SphereGeometry(0.75, 48, 32),
+  new THREE.MeshStandardMaterial({ color: 0xd85a30, transparent: true, opacity: 0.18, roughness: 0.6 })
+);
+heart.scale.set(0.85, 1.15, 0.8);
+heart.rotation.z = Math.PI / 5;
+scene.add(heart);
+
+function makeLabel(text, color = "#888780") {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 64;
+  const g = c.getContext("2d");
+  g.font = "600 34px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = color; g.fillText(text, 128, 32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sprite.scale.set(0.8, 0.2, 1);
+  return sprite;
+}
+
+// Body orientation hints
+[["Patient's left", toScene(3.3, -0.35, 0)], ["Feet", toScene(0.45, 3.0, 0)]].forEach(([t, p]) => {
+  const s = makeLabel(t, "#b4b2a9"); s.position.copy(p); scene.add(s);
+});
+
+// Lead "cameras": one line per lead direction, coloured by what that lead currently sees.
+const leadGroup = new THREE.Group();
+const leadLines = D.leadDirections.map((d, k) => {
+  const end = toScene(...d).multiplyScalar(2.3);
+  const mat = new THREE.LineBasicMaterial({ color: 0x888780, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), end]), mat);
+  const label = makeLabel(D.leadNames[k]);
+  label.position.copy(end.clone().multiplyScalar(1.1));
+  leadGroup.add(line, label);
+  return mat;
+});
+scene.add(leadGroup);
+document.getElementById("showLeads").addEventListener("change", e => { leadGroup.visible = e.target.checked; });
+
+// Faint ghost of the whole first beat, so the loop shape is always visible.
+const beatStart = Math.max(0, D.phase.indexOf(1) - Math.round(D.fs * 0.03));
+const beatEnd = Math.min(N, beatStart + Math.round(D.fs * 0.85));
+const ghostPts = [], ghostCols = [];
+for (let i = beatStart; i < beatEnd; i++) {
+  ghostPts.push(vecAt(i));
+  ghostCols.push(new THREE.Color(PHASE_COLORS[D.phase[i]]));
+}
+const ghostGeo = new THREE.BufferGeometry().setFromPoints(ghostPts);
+ghostGeo.setAttribute("color", new THREE.Float32BufferAttribute(ghostCols.flatMap(c => [c.r, c.g, c.b]), 3));
+scene.add(new THREE.Line(ghostGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.25 })));
+
+// Live trail: the last ~0.4 s of the arrow tip.
+const TRAIL = Math.round(D.fs * 0.4);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(TRAIL * 3), 3));
+trailGeo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(TRAIL * 3), 3));
+scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ vertexColors: true })));
+
+const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.01, 0xd85a30);
+scene.add(arrow);
+
+function update3D(i) {
+  const v = vecAt(i);
+  const len = v.length();
+  if (len > 0.02) {
+    arrow.visible = true;
+    arrow.setDirection(v.clone().normalize());
+    arrow.setLength(len, Math.min(0.25, len * 0.35), Math.min(0.14, len * 0.2));
+    arrow.setColor(PHASE_COLORS[D.phase[i]]);
+  } else {
+    arrow.visible = false;
+  }
+  const pos = trailGeo.attributes.position, col = trailGeo.attributes.color;
+  for (let k = 0; k < TRAIL; k++) {
+    const j = Math.max(0, i - TRAIL + 1 + k);
+    const p = vecAt(j), c = new THREE.Color(PHASE_COLORS[D.phase[j]]);
+    pos.setXYZ(k, p.x, p.y, p.z);
+    col.setXYZ(k, c.r, c.g, c.b);
+  }
+  pos.needsUpdate = col.needsUpdate = true;
+
+  D.leadNames.forEach((_, k) => {
+    const val = D.leads[k][i];
+    leadLines[k].color.setHex(val > 0.08 ? 0x1d9e75 : val < -0.08 ? 0xd85a30 : 0x888780);
+    leadLines[k].opacity = Math.abs(val) > 0.08 ? 1 : 0.5;
+  });
+}
+
+// --- 12-lead strips (monitor-style sweep) ---
+const strips = document.getElementById("strips");
+const sg = strips.getContext("2d");
+const WINDOW = 2.0; // seconds per sweep
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function drawStrips(i) {
+  const w = strips.clientWidth, h = strips.clientHeight, dpr = window.devicePixelRatio;
+  if (strips.width !== w * dpr) { strips.width = w * dpr; strips.height = h * dpr; }
+  sg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sg.clearRect(0, 0, w, h);
+  const cols = 2, rows = 6, cw = w / cols, rh = h / rows;
+  const winLen = Math.round(WINDOW * D.fs);
+  const start = Math.floor(i / winLen) * winLen;
+  for (let k = 0; k < 12; k++) {
+    const cx = Math.floor(k / rows) * cw, cy = (k % rows) * rh, mid = cy + rh / 2;
+    sg.strokeStyle = css("--grid"); sg.lineWidth = 1;
+    sg.beginPath(); sg.moveTo(cx + 34, mid); sg.lineTo(cx + cw - 6, mid); sg.stroke();
+    const val = D.leads[k][i];
+    sg.fillStyle = val > 0.08 ? "#1d9e75" : val < -0.08 ? "#d85a30" : css("--muted");
+    sg.font = "600 13px system-ui, sans-serif";
+    sg.fillText(D.leadNames[k], cx + 4, mid + 4);
+    sg.strokeStyle = css("--trace"); sg.lineWidth = 1.4;
+    sg.beginPath();
+    const plotW = cw - 40, yScale = (rh * 0.45) / maxLead;
+    for (let j = start; j <= i; j++) {
+      const x = cx + 34 + ((j - start) / winLen) * plotW;
+      const y = mid - D.leads[k][j] * yScale;
+      j === start ? sg.moveTo(x, y) : sg.lineTo(x, y);
+    }
+    sg.stroke();
+  }
+}
+
+// --- Playback ---
+let playing = true, t = 0, last = performance.now();
+const speedSel = document.getElementById("speed");
+document.getElementById("play").addEventListener("click", e => {
+  playing = !playing;
+  e.target.textContent = playing ? "Pause" : "Play";
+});
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+function frame(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (playing) t = (t + dt * parseFloat(speedSel.value)) % (N / D.fs);
+  const i = Math.min(N - 1, Math.floor(t * D.fs));
+  resize();
+  update3D(i);
+  drawStrips(i);
+  document.getElementById("phase").textContent = PHASE_TEXT[D.phase[i]] || "";
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
