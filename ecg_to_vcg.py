@@ -135,19 +135,133 @@ def clean_ecg(signals, fs, low_hz=0.5, high_hz=40.0):
     return filtfilt(b, a, signals, axis=-1)
 
 
-def detect_phases(h, fs):
-    """Rough P / QRS / T labels for real data: find the QRS peaks in |h|, then use fixed windows around them."""
+BEAT_BEFORE_MS, BEAT_AFTER_MS = 300, 550  # median-beat window around the R peak
+
+
+def find_r_peaks(h, fs):
+    """QRS peaks = big maxima of |h|, at least 300 ms apart."""
     from scipy.signal import find_peaks
 
     magnitude = np.linalg.norm(h, axis=0)
     peaks, _ = find_peaks(magnitude, height=0.5 * magnitude.max(), distance=int(0.3 * fs))
-    phase = np.zeros(h.shape[1], dtype=int)
-    ms = lambda x: int(x * fs / 1000)
+    return peaks
+
+
+def median_beat(h, leads, peaks, fs):
+    """
+    Average beat: cut a window around every R peak, line the beats up, take the median.
+    The median ignores one-off noise and odd beats, which is why ECG machines do the same.
+
+    Beats are first cut at the raw peaks, then each one is nudged (up to +-40 ms) to best
+    match the first-pass template. That matters for wide or notched QRS (bundle branch
+    blocks), where the tallest point can jump between two humps from beat to beat.
+    """
+    ms = lambda x: int(round(x * fs / 1000))
+    before, after = ms(BEAT_BEFORE_MS), ms(BEAT_AFTER_MS)
+    peaks = np.array([p for p in peaks if p - before - ms(40) >= 0 and p + after + ms(40) <= h.shape[1]])
+    if len(peaks) == 0:
+        raise ValueError("no complete beats found")
+
+    cut = lambda x, p: x[:, p - before:p + after]
+    template = np.median([cut(h, p) for p in peaks], axis=0)
+    aligned = []
     for p in peaks:
-        phase[max(0, p + ms(-220)):max(0, p + ms(-90))] = 1   # P wave
-        phase[max(0, p + ms(-50)):p + ms(60)] = 2             # QRS
-        phase[p + ms(120):p + ms(420)] = 3                    # T wave
-    return phase, peaks
+        shifts = range(-ms(40), ms(40) + 1)
+        best = max(shifts, key=lambda s: np.sum(cut(h, p + s) * template))
+        aligned.append(p + best)
+    aligned = np.array(aligned)
+    vec = np.median([cut(h, p) for p in aligned], axis=0)
+    beat_leads = np.median([cut(leads, p) for p in aligned], axis=0)
+    return vec, beat_leads, aligned, before
+
+
+def qrs_bounds(vec, r_index, fs):
+    """
+    QRS onset / offset from the spatial velocity |dh/dt|: the ventricles firing is by far
+    the fastest-moving part of the beat. Start at the fastest point and grow outwards while
+    the tip is still moving fast (>10% of top speed), tolerating dips shorter than 10 ms,
+    such as the moment the loop turns around at its tip.
+    """
+    ms = lambda x: int(round(x * fs / 1000))
+    velocity = np.linalg.norm(np.diff(vec, axis=1), axis=0)
+    lo, hi = max(0, r_index - ms(120)), min(velocity.size, r_index + ms(150))
+    centre = lo + int(np.argmax(velocity[lo:hi]))
+    fast = velocity > 0.1 * velocity[centre]
+    gap = max(1, ms(10))
+    onset, offset = centre, centre
+    while onset > lo and fast[max(0, onset - gap):onset].any():
+        onset -= 1
+    while offset < hi and fast[offset:offset + gap].any():
+        offset += 1
+    return onset, offset
+
+
+def phase_windows(onset, offset, fs):
+    """(label, start, end) for P / QRS / T, placed relative to the measured QRS onset and offset."""
+    ms = lambda x: int(round(x * fs / 1000))
+    return [
+        (1, onset - ms(180), onset - ms(50)),   # P wave
+        (2, onset, offset),                     # QRS
+        (3, offset + ms(60), onset + ms(440)),  # T wave
+    ]
+
+
+def label_phases(n, fs, centres, onset, offset):
+    """Phase labels for an n-sample signal; onset/offset are relative to each centre (R peak)."""
+    phase = np.zeros(n, dtype=int)
+    for c in centres:
+        for label, a, b in phase_windows(c + onset, c + offset, fs):
+            phase[max(0, a):max(0, b)] = label
+    return phase
+
+
+def angle_deg(a, b):
+    cos = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    return float(np.degrees(np.arccos(np.clip(cos, -1, 1))))
+
+
+def analyse_beats(h, leads, fs):
+    """
+    Median beat + the classic vectorcardiogram measurements:
+      - QRS duration (ms): how long the ventricles take to fire. Normal < ~110 ms; bundle branch block >= 120.
+      - QRS / T frontal axis (deg): direction of the mean vector in the front view (0 = left, +90 = feet).
+      - QRS-T angle (deg): 3D angle between the mean QRS and mean T vectors. Normally small;
+        large when depolarisation or repolarisation is abnormal.
+    """
+    peaks = find_r_peaks(h, fs)
+    vec, beat_leads, aligned, r_index = median_beat(h, leads, peaks, fs)
+    onset, offset = qrs_bounds(vec, r_index, fs)
+
+    # Baseline: the flat PR segment just before the QRS is "zero" for both the loop and the leads.
+    ms = lambda x: int(round(x * fs / 1000))
+    base = slice(max(0, onset - ms(30)), max(1, onset - ms(10)))
+    vec = vec - vec[:, base].mean(axis=1, keepdims=True)
+    beat_leads = beat_leads - beat_leads[:, base].mean(axis=1, keepdims=True)
+
+    phase = label_phases(vec.shape[1], fs, [0], onset, offset)
+    mean_qrs = vec[:, phase == 2].mean(axis=1)
+    mean_t = vec[:, phase == 3].mean(axis=1)
+    frontal_axis = lambda v: float(np.degrees(np.arctan2(v[1], v[0])))
+    stats = {
+        "beats": int(len(aligned)),
+        "bpm": float(60 * fs / np.median(np.diff(aligned))) if len(aligned) > 1 else float("nan"),
+        "qrsMs": float((offset - onset) * 1000 / fs),
+        "qrsAxisDeg": frontal_axis(mean_qrs),
+        "tAxisDeg": frontal_axis(mean_t),
+        "qrsTAngleDeg": angle_deg(mean_qrs, mean_t),
+        "qrsPeakMv": float(np.linalg.norm(vec[:, phase == 2], axis=0).max()),
+    }
+    # Beats too close to the edges were left out of the median; keep them for labelling the recording.
+    edge = [p for p in peaks if np.min(np.abs(aligned - p)) > ms(200)]
+    return {"vector": vec, "leads": beat_leads, "phase": phase, "rIndex": r_index,
+            "onset": onset, "offset": offset, "peaks": np.sort(np.concatenate([aligned, edge])).astype(int),
+            "stats": stats}
+
+
+def detect_phases(n, fs, beat):
+    """P / QRS / T labels for the whole recording: the median beat's QRS onset/offset, applied to every beat."""
+    r = beat["rIndex"]
+    return label_phases(n, fs, beat["peaks"], beat["onset"] - r, beat["offset"] - r)
 
 
 def load_wfdb(path):
@@ -166,35 +280,51 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--wfdb", help="path to a WFDB record (without extension), e.g. PTB-XL records500/00000/00001_hr")
     parser.add_argument("--out", default="ecg_data.js", help="output file the viewer loads")
+    parser.add_argument("--label", help="short diagnosis label shown in the viewers, e.g. 'Left bundle branch block'")
     args = parser.parse_args()
 
     if args.wfdb:
         t, leads, by_name, fs = load_wfdb(args.wfdb)
         h = inverse_kors(by_name)
-        phase, peaks = detect_phases(h, fs)
-        bpm = 60 * fs / np.median(np.diff(peaks)) if len(peaks) > 1 else float("nan")
-        print(f"Real ECG: {len(peaks)} beats detected, ~{bpm:.0f} bpm")
+        beat = analyse_beats(h, leads, fs)
+        phase = detect_phases(h.shape[1], fs, beat)
+        bpm = beat["stats"]["bpm"]
+        print(f"Real ECG: {len(beat['peaks'])} beats detected, ~{bpm:.0f} bpm")
         source = f"Real ECG, record {args.wfdb} (Kors reconstruction, ~{bpm:.0f} bpm)"
     else:
         fs = 500
         t, h_true, phase = synthetic_heart_vector(fs=fs)
         leads = forward(h_true)
         h = inverse_lstsq(leads)
+        beat = analyse_beats(h, leads, fs)
         error = np.abs(h - h_true).max()
         print(f"Synthetic ECG: {leads.shape[0]} leads x {leads.shape[1]} samples")
         print(f"Reconstruction max error vs true heart vector: {error:.2e} mV")
         source = "Synthetic normal heart (least-squares reconstruction)"
 
+    s = beat["stats"]
+    print(f"Median of {s['beats']} beats: QRS {s['qrsMs']:.0f} ms, QRS axis {s['qrsAxisDeg']:.0f} deg, "
+          f"T axis {s['tAxisDeg']:.0f} deg, QRS-T angle {s['qrsTAngleDeg']:.0f} deg, peak {s['qrsPeakMv']:.2f} mV")
+
     # Downsample to 250 Hz for the browser; plenty for drawing.
     step = max(1, int(round(fs / 250)))
     data = {
         "source": source,
+        "label": args.label or ("Normal (synthetic)" if not args.wfdb else None),
         "fs": fs / step,
         "leadNames": LEAD_NAMES,
         "leads": np.round(leads[:, ::step], 4).tolist(),
         "vector": np.round(h[:, ::step], 4).tolist(),
         "phase": phase[::step].tolist(),
         "leadDirections": np.round(LEAD_DIRECTIONS, 4).tolist(),
+        # One averaged heartbeat, R peak at index rIndex. Used by compare.html.
+        "beat": {
+            "vector": np.round(beat["vector"][:, ::step], 4).tolist(),
+            "leads": np.round(beat["leads"][:, ::step], 4).tolist(),
+            "phase": beat["phase"][::step].tolist(),
+            "rIndex": beat["rIndex"] // step,
+            "stats": {k: round(v, 3) for k, v in s.items()},
+        },
     }
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("window.ECG_DATA = " + json.dumps(data) + ";\n")

@@ -4,8 +4,10 @@
 heart3D/
 ├── ecg_to_vcg.py        # maths: ECG <-> 3D heart vector, writes data for the viewer
 ├── viewer.html          # three.js 3D viewer + 12-lead monitor strips
+├── compare.html         # normal vs abnormal: averaged beats side by side
 ├── ecg_data.js          # generated: synthetic normal heart
-├── ecg_data_real.js     # generated: real PTB-XL record 00001
+├── ecg_data_real.js     # generated: real PTB-XL record 00001 (normal)
+├── data/                # generated: abnormal PTB-XL records (ptbxl_<id>.js)
 ├── ptbxl/               # downloaded PTB-XL record(s) (.hea header + .dat signal)
 └── docs/                # these notes
 ```
@@ -20,10 +22,16 @@ heart3D/
 | `inverse_lstsq(leads)` | Least squares: 12 leads -> heart vector, using the ideal directions |
 | `KORS` / `inverse_kors()` | Kors regression matrix for **real** data (leads I, II, V1-V6 -> X, Y, Z) |
 | `clean_ecg()` | 0.5-40 Hz band-pass: removes breathing drift and muscle / mains noise |
-| `detect_phases()` | Finds QRS peaks in the vector magnitude, labels P / QRS / T with fixed time windows (approximate) |
+| `find_r_peaks()` | QRS peaks = big maxima of the vector magnitude, at least 300 ms apart |
+| `median_beat()` | Cuts a window around every beat, lines the beats up (cross-correlation, +-40 ms), takes the median |
+| `qrs_bounds()` | QRS onset / offset from the **spatial velocity** \|dh/dt\|: grows outward from the fastest point while the loop is still moving fast |
+| `analyse_beats()` | Median beat + measurements: QRS duration, QRS / T frontal axis, 3D QRS-T angle, peak amplitude, heart rate |
+| `detect_phases()` | Labels P / QRS / T for the whole recording, using the QRS onset / offset measured on the median beat |
 | `load_wfdb()` | Reads a PhysioNet record, filters it, returns leads by name |
 
 Output is a `.js` file (`window.ECG_DATA = {...}`) so the viewer can load it with a plain `<script>` tag.
+It holds the full recording plus a `beat` object: one averaged heartbeat (vector, 12 leads, phases), the R-peak
+index, and the measurements. `--label` adds a diagnosis name that the viewers show.
 
 **Sanity check:** on synthetic data the reconstruction error is ~1e-15, because the leads were made with the exact same dot products. That proves the pipeline is consistent, not that it's medically accurate.
 
@@ -36,17 +44,45 @@ Output is a `.js` file (`window.ECG_DATA = {...}`) so the viewer can load it wit
 - **Right panel** = 12 leads in a 2-second monitor sweep, in sync with the 3D view.
 - Everything auto-scales to the recording's amplitude.
 
+## compare.html
+
+- Loads the normal record plus four abnormal ones (list at the top of the script, each with a "what's happening"
+  and "what to look for" text). Only the averaged beat of each is used.
+- **3D view**: both loops as tubes (thick QRS, thin T, thinnest P), with a dot moving along each. Beats are lined up
+  on the R peak, so the dots are at the same moment of the heartbeat.
+- **Plane views**: front, top-down and side, the classic way a vectorcardiogram is printed. Dots every 20 ms show
+  speed: bunched dots = slow conduction (bundle branch blocks).
+- **12 leads** of the averaged beat, normal and abnormal overlaid, with a time cursor.
+- All loops share one scale so sizes are comparable; the 12-lead traces are scaled per pair.
+
+| Record | Condition | What shows up |
+|---|---|---|
+| 00001 | Normal | QRS 80 ms, narrow loop down-left, QRS-T angle 66° |
+| 00492 | Anterior (anteroseptal) MI | Early QRS goes backward instead of forward; QS in V2 |
+| 00290 | Inferior MI | Weaker early downward forces, axis 9° vs 29° (mild) |
+| 00338 | Left bundle branch block | QRS 138 ms, big backward loop, T opposite (QRS-T 154°) |
+| 00903 | Right bundle branch block | QRS 132 ms, slow late tail to the right and front |
+
+Records were picked from PTB-XL's `ptbxl_database.csv`: the only diagnosis, 100% likelihood, sinus rhythm,
+validated by a cardiologist, and no noise / electrode / extra-beat flags.
+
 ## Running it
 
 ```bash
 pip install -r requirements.txt
 
 python ecg_to_vcg.py                                                  # synthetic -> ecg_data.js
-python ecg_to_vcg.py --wfdb ptbxl/00001_hr --out ecg_data_real.js     # real record
+python ecg_to_vcg.py --wfdb ptbxl/00001_hr --out ecg_data_real.js --label "Normal"
+python ecg_to_vcg.py --wfdb ptbxl/00492_hr --out data/ptbxl_00492.js --label "Anterior (anteroseptal) myocardial infarction"
+python ecg_to_vcg.py --wfdb ptbxl/00290_hr --out data/ptbxl_00290.js --label "Inferior myocardial infarction"
+python ecg_to_vcg.py --wfdb ptbxl/00338_hr --out data/ptbxl_00338.js --label "Left bundle branch block"
+python ecg_to_vcg.py --wfdb ptbxl/00903_hr --out data/ptbxl_00903.js --label "Right bundle branch block"
 
 python -m http.server 8765
 # then open http://localhost:8765/viewer.html                         (synthetic)
 #       or http://localhost:8765/viewer.html?data=ecg_data_real.js    (real)
+#       or http://localhost:8765/viewer.html?data=data/ptbxl_00338.js (any record in data/)
+#       or http://localhost:8765/compare.html                         (normal vs abnormal)
 ```
 
 A local server is needed because browsers block ES modules on `file://` pages.
@@ -57,6 +93,9 @@ PTB-XL records live at `https://physionet.org/files/ptb-xl/1.0.3/records500/<fol
 
 ## Known limitations
 
-- Phase colours use fixed time windows, so they're approximate on fast or abnormal rhythms.
+- P and T phase labels are placed at fixed offsets from the measured QRS, so they're approximate on fast or abnormal rhythms. The QRS itself is measured.
+- QRS boundaries from spatial velocity are a simple method; expect a few ms of difference from a cardiologist's caliper.
+- Frontal axis is unreliable when limb-lead voltage is low (records 00001 and 00903).
+- Each condition is one patient, so some differences are between-person variation, not the disease.
 - Kors is fitted to average adults; per person it's an estimate.
 - The heart is a stand-in ellipsoid.

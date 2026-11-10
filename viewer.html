@@ -65,7 +65,7 @@
 <script>
   // Pick the data file from the URL, e.g. viewer.html?data=ecg_data_real.js (defaults to the synthetic one).
   const dataFile = new URLSearchParams(location.search).get("data") || "ecg_data.js";
-  if (/^[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
+  if (/^(data\/)?[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
 </script>
 <script type="importmap">
 { "imports": {
@@ -85,8 +85,10 @@ const PHASE_TEXT = ["Between beats", "P wave: atria firing", "QRS: ventricles fi
 const maxMag = Math.max(...D.vector[0].map((_, i) => Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i])));
 const SCALE = 2 / maxMag;
 const maxLead = Math.max(...D.leads.flat().map(Math.abs));
-document.getElementById("source").textContent =
-  `${D.source}. Drag to rotate, scroll to zoom. Viewed from the front of the patient.`;
+const sourceEl = document.getElementById("source");
+sourceEl.textContent = `${D.label ? D.label + ". " : ""}${D.source}. Drag to rotate, scroll to zoom. Viewed from the front of the patient. `;
+const compareLink = Object.assign(document.createElement("a"), { href: "compare.html", textContent: "Compare normal vs abnormal" });
+sourceEl.appendChild(compareLink);
 
 // Frank (x left, y feet, z back) -> three.js (x right on screen = patient's left, y up, z towards viewer = front)
 const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z);

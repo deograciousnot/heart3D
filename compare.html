@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Normal vs Abnormal</title>
+<style>
+  :root {
+    --bg: #faf9f5; --panel: #ffffff; --text: #1f1e1d; --muted: #6b6a65; --border: #e3e1d9;
+    --grid: #ece9e1; --normal: #8a8984; --accent: #d85a30; --accent-soft: #fbe9e2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1a18; --panel: #232321; --text: #ecebe6; --muted: #a3a29c; --border: #3a3a36;
+      --grid: #2e2e2b; --normal: #9c9b95; --accent: #e8744c; --accent-soft: #3a2620; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  a { color: var(--accent); }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
+  h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  h3 { font-size: 13px; font-weight: 600; margin: 12px 0 2px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .picker button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); cursor: pointer; }
+  .picker button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+  .planes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .planes { grid-template-columns: minmax(0, 1fr); }
+  }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-width: 0; }
+  .full { margin-top: 12px; }
+  #scene { width: 100%; height: 400px; display: block; border-radius: 8px; cursor: grab; touch-action: none; }
+  .plane { width: 100%; aspect-ratio: 1; display: block; }
+  #leads { width: 100%; height: 360px; display: block; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .swatch { display: inline-block; width: 18px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .controls button, .controls select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); cursor: pointer; }
+  #scrub { flex: 1 1 200px; accent-color: var(--accent); }
+  #clock { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 230px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--muted); font-weight: 600; }
+  td.flag { color: var(--accent); font-weight: 600; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .error { background: var(--accent-soft); padding: 12px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Normal vs abnormal heart vector</h1>
+  <p class="sub">One averaged heartbeat per patient, from real PTB-XL ECGs. Grey is a normal heart, orange is the selected condition.
+    Beats are lined up on the R peak, so the moving dots show both hearts at the same moment.
+    <a href="viewer.html?data=ecg_data_real.js">Back to the live viewer</a></p>
+
+  <div class="picker" id="picker" role="group" aria-label="Condition to compare"></div>
+
+  <div class="layout">
+    <div class="card">
+      <canvas id="scene" aria-label="3D view of both heart vector loops"></canvas>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--normal)"></span>Normal</span>
+        <span><span class="swatch" style="background:var(--accent)"></span><span id="legendName"></span></span>
+        <span>Thick = QRS (ventricles firing), thin = T (resetting), thinnest = P (atria). Drag to rotate. Viewed from the patient's front.</span>
+      </div>
+    </div>
+    <div class="card" id="info"></div>
+  </div>
+
+  <div class="controls">
+    <button id="play">Pause</button>
+    <label>Speed
+      <select id="speed">
+        <option value="0.1">0.1x</option>
+        <option value="0.25" selected>0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1">1x (real time)</option>
+      </select>
+    </label>
+    <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Time within the heartbeat">
+    <span id="clock"></span>
+  </div>
+
+  <div class="planes">
+    <div class="card"><h2>Front view</h2><canvas class="plane" id="planeF"></canvas></div>
+    <div class="card"><h2>Top-down view</h2><canvas class="plane" id="planeH"></canvas></div>
+    <div class="card"><h2>Side view (from the left)</h2><canvas class="plane" id="planeS"></canvas></div>
+  </div>
+  <p class="note">Dots along the thick loops are every 20 ms. Where they bunch up, the electrical wave is travelling slowly through the heart.</p>
+
+  <div class="card full">
+    <h2>The 12 leads for the same averaged beat</h2>
+    <canvas id="leads" aria-label="12-lead averaged beat, normal and selected condition overlaid"></canvas>
+  </div>
+
+  <p class="note">Each condition is one patient, so some differences are just normal variation between people. The 3D vector is estimated with
+    the Kors matrix, which is fitted to average adults. For learning only. This is not a medical device.
+    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0.</p>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ---------------------------------------------------------------------------
+// Records. Each file is made by ecg_to_vcg.py; the text explains what to look for.
+// ---------------------------------------------------------------------------
+const NORMAL = {
+  id: "normal", file: "ecg_data_real.js", name: "Normal", record: "00001",
+  what: "The impulse runs down the fast wiring (the bundle branches) and both ventricles fire together in about 80–100 ms.",
+  look: "A narrow, smooth QRS loop pointing down and to the left. It starts with a short swing forward (the septum fires first, from left to right), and the T loop points roughly the same way as the QRS.",
+  caveat: "The cardiologist noted low voltage in the limb leads for this patient, so the loop is a little smaller than average.",
+};
+const ABNORMAL = [
+  {
+    id: "ami", file: "data/ptbxl_00492.js", name: "Anterior MI", record: "00492",
+    what: "An old heart attack (myocardial infarction) scarred the front wall and the septum. Scar tissue doesn't fire, so the forces that normally point forward are missing. The ECG shows QS complexes in V2 (no R wave at all).",
+    look: "Look at the top-down view. The normal loop starts by swinging forward, but this one starts moving backward, away from the dead front wall. The QRS–T angle is also wider than normal.",
+  },
+  {
+    id: "imi", file: "data/ptbxl_00290.js", name: "Inferior MI", record: "00290",
+    what: "An old heart attack scarred the bottom (inferior) wall of the heart, the part resting on the diaphragm. Leads II, III and aVF look at that wall from below.",
+    look: "In the front view, the start of the QRS loop has much weaker downward forces than normal, and the whole loop sits higher (axis about 9° instead of 29°). In this patient the change is mild, which is common for an old inferior scar.",
+  },
+  {
+    id: "lbbb", file: "data/ptbxl_00338.js", name: "Left bundle branch block", record: "00338",
+    what: "The left bundle, the fast wiring to the left ventricle, is blocked. The right side fires first, then the wave crawls slowly through muscle to reach the left ventricle.",
+    look: "The QRS lasts much longer (over 120 ms), and in the plane views the 20 ms dots are spread around a big loop pointing backward and to the left. The normal forward start is gone because the septum now fires from the wrong side. The T loop points the opposite way (QRS–T angle around 150°).",
+  },
+  {
+    id: "rbbb", file: "data/ptbxl_00903.js", name: "Right bundle branch block", record: "00903",
+    what: "The right bundle is blocked. The left ventricle fires normally, then the right ventricle is reached late, through slow muscle-to-muscle spread.",
+    look: "The first part of the loop looks fairly normal. Then a slow late tail points right and forward, toward V1 (the tightly packed dots at the end of the loop). That tail makes the QRS over 120 ms and gives the typical rSR′ in V1.",
+    caveat: "The frontal axis looks extreme here (about 175°), but this patient has low voltage in the limb leads, so the average front-view vector is tiny and its angle isn't reliable.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Loading: each data file sets window.ECG_DATA, so load them one after another.
+// ---------------------------------------------------------------------------
+function loadScript(file) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = file;
+    s.onload = () => resolve(window.ECG_DATA);
+    s.onerror = () => reject(new Error(`Couldn't load ${file}`));
+    document.head.appendChild(s);
+  });
+}
+
+let records;
+try {
+  records = [];
+  for (const r of [NORMAL, ...ABNORMAL]) {
+    const d = await loadScript(r.file);
+    if (!d.beat) throw new Error(`${r.file} has no averaged beat. Re-run ecg_to_vcg.py to regenerate it.`);
+    records.push({ ...r, data: d, beat: d.beat });
+  }
+} catch (err) {
+  document.getElementById("info").innerHTML =
+    `<p class="error">${err.message} This page needs a local server: run <code>python -m http.server 8765</code> in the project folder.</p>`;
+  throw err;
+}
+const normal = records[0];
+let current = records[1];
+
+const FS = normal.data.fs;
+const R = normal.beat.rIndex;
+const LEN = Math.min(...records.map(r => r.beat.phase.length));
+const mag = (b, i) => Math.hypot(b.vector[0][i], b.vector[1][i], b.vector[2][i]);
+// One shared scale for every record, so amplitudes are directly comparable.
+const MAX_MAG = Math.max(...records.flatMap(r => r.beat.phase.map((_, i) => mag(r.beat, i))));
+// Lead traces are scaled per pair (normal + selected), so small complexes stay readable.
+const maxLeadOf = recs => Math.max(...recs.flatMap(r => r.beat.leads.flat().map(Math.abs)));
+
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---------------------------------------------------------------------------
+// Picker + info panel
+// ---------------------------------------------------------------------------
+const picker = document.getElementById("picker");
+records.slice(1).forEach(r => {
+  const b = document.createElement("button");
+  b.textContent = r.name;
+  b.addEventListener("click", () => select(r));
+  r.button = b;
+  picker.appendChild(b);
+});
+
+const fmt = {
+  ms: v => `${Math.round(v)} ms`,
+  deg: v => `${Math.round(v)}°`,
+  mv: v => `${v.toFixed(2)} mV`,
+  bpm: v => `${Math.round(v)}`,
+};
+const ROWS = [
+  ["QRS duration", "qrsMs", fmt.ms, (n, a) => a >= 120],
+  ["QRS axis (front view)", "qrsAxisDeg", fmt.deg, (n, a) => a < -30 || a > 90],
+  ["T axis (front view)", "tAxisDeg", fmt.deg, (n, a) => Math.abs(a - n) > 60],
+  ["QRS–T angle (3D)", "qrsTAngleDeg", fmt.deg, (n, a) => a > 105],
+  ["Peak QRS vector", "qrsPeakMv", fmt.mv, () => false],
+  ["Heart rate (bpm)", "bpm", fmt.bpm, () => false],
+];
+
+function renderInfo() {
+  const n = normal.beat.stats, a = current.beat.stats;
+  const rows = ROWS.map(([label, key, f, odd]) =>
+    `<tr><td>${label}</td><td>${f(n[key])}</td><td class="${odd(n[key], a[key]) ? "flag" : ""}">${f(a[key])}</td></tr>`).join("");
+  const caveats = [normal, current].filter(r => r.caveat).map(r => `<p class="note"><strong>${r.name}:</strong> ${r.caveat}</p>`).join("");
+  document.getElementById("info").innerHTML = `
+    <h2>${current.name}</h2>
+    <h3>What's happening</h3><p>${current.what}</p>
+    <h3>What to look for</h3><p>${current.look}</p>
+    <h3>Measured on the averaged beat</h3>
+    <table>
+      <thead><tr><th></th><th>Normal</th><th>${current.name}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="note">Orange values are outside the usual adult range. PTB-XL records ${normal.record} and ${current.record}.
+      <a href="viewer.html?data=${current.file}">Play the full recording</a></p>
+    ${caveats}`;
+  document.getElementById("legendName").textContent = current.name;
+}
+
+// ---------------------------------------------------------------------------
+// 3D scene
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(1.5, 0.8, 3.6);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enableZoom = false; // the wheel should scroll this long page, not zoom the scene
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(3, 4, 5);
+scene.add(sun);
+
+const heart = new THREE.Mesh(
+  new THREE.SphereGeometry(0.75, 48, 32),
+  new THREE.MeshStandardMaterial({ color: 0xd85a30, transparent: true, opacity: 0.1, roughness: 0.6, depthWrite: false })
+);
+heart.scale.set(0.85, 1.15, 0.8);
+heart.rotation.z = Math.PI / 5;
+scene.add(heart);
+
+const SCALE = 2 / MAX_MAG;
+// Frank (x left, y feet, z back) -> three.js (x right on screen = patient's left, y up, z towards viewer = front)
+const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z);
+const pointAt = (b, i) => toScene(b.vector[0][i], b.vector[1][i], b.vector[2][i]).multiplyScalar(SCALE);
+
+function makeLabel(text) {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 64;
+  const g = c.getContext("2d");
+  g.font = "600 34px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = "#a3a29c"; g.fillText(text, 128, 32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sprite.scale.set(0.8, 0.2, 1);
+  return sprite;
+}
+[["Patient's left", toScene(2.1, -0.25, 0)], ["Feet", toScene(0.4, 2.1, 0)], ["Front", toScene(0, -0.25, -2.1)]].forEach(([t, p]) => {
+  const s = makeLabel(t); s.position.copy(p); scene.add(s);
+});
+// Faint axes through the centre of the heart.
+const axisMat = new THREE.LineBasicMaterial({ color: 0x8a8984, transparent: true, opacity: 0.35 });
+[[2, 0, 0], [0, 2, 0], [0, 0, 2]].forEach(([x, y, z]) => {
+  const a = toScene(-x, -y, -z), b = toScene(x, y, z);
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), axisMat));
+});
+
+const RADIUS = { 1: 0.012, 2: 0.034, 3: 0.018 };
+
+/** Loop as tubes: one tube per contiguous P / QRS / T stretch, thicker for QRS. */
+function buildLoop(beat, color) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+  let start = 0;
+  for (let i = 1; i <= LEN; i++) {
+    if (i < LEN && beat.phase[i] === beat.phase[start]) continue;
+    const ph = beat.phase[start];
+    if (ph > 0 && i - start > 2) {
+      const pts = [];
+      for (let k = start; k <= Math.min(i, LEN - 1); k++) pts.push(pointAt(beat, k));
+      const curve = new THREE.CatmullRomCurve3(pts);
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 3, RADIUS[ph], 8, false), mat));
+    }
+    start = i;
+  }
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 20, 14), new THREE.MeshStandardMaterial({ color, roughness: 0.3 }));
+  group.add(dot);
+  scene.add(group);
+  return { group, dot };
+}
+
+const colorOf = name => new THREE.Color(css(name));
+const normalLoop = buildLoop(normal.beat, colorOf("--normal"));
+let abnormalLoop = null;
+
+function resize3D() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2D plane views (the classic way vectorcardiograms are printed)
+// ---------------------------------------------------------------------------
+// Each view picks two Frank axes for screen x / y (positive = right / down) and labels the four sides.
+const PLANES = [
+  { el: "planeF", x: v => v[0], y: v => v[1], labels: { left: "Right", right: "Left", top: "Head", bottom: "Feet" } },
+  { el: "planeH", x: v => v[0], y: v => v[2], labels: { left: "Right", right: "Left", top: "Front", bottom: "Back" } },
+  { el: "planeS", x: v => v[2], y: v => v[1], labels: { left: "Front", right: "Back", top: "Head", bottom: "Feet" } },
+].map(p => ({ ...p, canvas: document.getElementById(p.el), ctx: document.getElementById(p.el).getContext("2d") }));
+
+const vecOf = (b, i) => [b.vector[0][i], b.vector[1][i], b.vector[2][i]];
+
+function drawPlane(p, i) {
+  const { canvas: c, ctx: g } = p;
+  const w = c.clientWidth, h = c.clientHeight, dpr = window.devicePixelRatio;
+  if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, s = (Math.min(w, h) / 2 - 30) / MAX_MAG;
+  const at = v => [cx + p.x(v) * s, cy + p.y(v) * s];
+
+  g.strokeStyle = css("--grid"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(18, cy); g.lineTo(w - 18, cy); g.moveTo(cx, 18); g.lineTo(cx, h - 18); g.stroke();
+  g.fillStyle = css("--muted"); g.font = "12px system-ui, sans-serif";
+  g.textBaseline = "middle";
+  g.textAlign = "left"; g.fillText(p.labels.left, 2, cy - 10);
+  g.textAlign = "right"; g.fillText(p.labels.right, w - 2, cy - 10);
+  g.textAlign = "center";
+  g.fillText(p.labels.top, cx + 22, 9);
+  g.fillText(p.labels.bottom, cx + 22, h - 9);
+
+  for (const [rec, color] of [[normal, css("--normal")], [current, css("--accent")]]) {
+    const b = rec.beat;
+    g.strokeStyle = color; g.fillStyle = color; g.lineCap = "round"; g.lineJoin = "round";
+    for (let k = 1; k < LEN; k++) {
+      const ph = b.phase[k];
+      if (!ph) continue;
+      g.lineWidth = ph === 2 ? 2.2 : ph === 3 ? 1.3 : 0.9;
+      g.beginPath(); g.moveTo(...at(vecOf(b, k - 1))); g.lineTo(...at(vecOf(b, k))); g.stroke();
+    }
+    // 20 ms time marks on the QRS loop
+    const every = Math.max(1, Math.round(0.02 * FS));
+    const q0 = b.phase.indexOf(2);
+    for (let k = q0; k < LEN && b.phase[k] === 2; k += every) {
+      const [x, y] = at(vecOf(b, k));
+      g.beginPath(); g.arc(x, y, 2.6, 0, 2 * Math.PI); g.fill();
+    }
+    const [x, y] = at(vecOf(b, i));
+    g.beginPath(); g.arc(x, y, 5, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = css("--panel"); g.lineWidth = 1.5; g.stroke();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 12-lead averaged beat
+// ---------------------------------------------------------------------------
+const leadCanvas = document.getElementById("leads");
+const lg = leadCanvas.getContext("2d");
+// Standard printout layout: columns of I-III, aVR-aVF, V1-V3, V4-V6.
+const LAYOUT = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]];
+
+function drawLeads(i) {
+  const w = leadCanvas.clientWidth, h = leadCanvas.clientHeight, dpr = window.devicePixelRatio;
+  if (leadCanvas.width !== Math.round(w * dpr)) { leadCanvas.width = Math.round(w * dpr); leadCanvas.height = Math.round(h * dpr); }
+  lg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  lg.clearRect(0, 0, w, h);
+  const narrow = w < 560;
+  const cols = narrow ? 2 : 4, rows = narrow ? 6 : 3;
+  const order = narrow ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : LAYOUT.flat();
+  const cw = w / cols, rh = h / rows;
+  const yScale = (rh * 0.46) / maxLeadOf([normal, current]);
+  order.forEach((k, slot) => {
+    const col = narrow ? Math.floor(slot / rows) : Math.floor(slot / 3);
+    const row = narrow ? slot % rows : slot % 3;
+    const x0 = col * cw + 30, plotW = cw - 38, mid = row * rh + rh / 2;
+    const xAt = j => x0 + (j / (LEN - 1)) * plotW;
+
+    lg.strokeStyle = css("--grid"); lg.lineWidth = 1;
+    lg.beginPath(); lg.moveTo(x0, mid); lg.lineTo(x0 + plotW, mid); lg.stroke();
+    lg.fillStyle = css("--muted"); lg.font = "600 12px system-ui, sans-serif";
+    lg.textAlign = "left"; lg.textBaseline = "middle";
+    lg.fillText(normal.data.leadNames[k], col * cw + 4, mid);
+
+    for (const [rec, color, width] of [[normal, css("--normal"), 1.3], [current, css("--accent"), 1.7]]) {
+      lg.strokeStyle = color; lg.lineWidth = width;
+      lg.beginPath();
+      for (let j = 0; j < LEN; j++) {
+        const y = mid - rec.beat.leads[k][j] * yScale;
+        j ? lg.lineTo(xAt(j), y) : lg.moveTo(xAt(j), y);
+      }
+      lg.stroke();
+    }
+    lg.strokeStyle = css("--muted"); lg.globalAlpha = 0.5; lg.lineWidth = 1;
+    lg.beginPath(); lg.moveTo(xAt(i), row * rh + 6); lg.lineTo(xAt(i), row * rh + rh - 6); lg.stroke();
+    lg.globalAlpha = 1;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Selection, playback
+// ---------------------------------------------------------------------------
+function select(rec) {
+  current = rec;
+  records.slice(1).forEach(r => r.button.setAttribute("aria-pressed", String(r === rec)));
+  if (abnormalLoop) {
+    scene.remove(abnormalLoop.group);
+    abnormalLoop.group.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+  }
+  abnormalLoop = buildLoop(rec.beat, colorOf("--accent"));
+  renderInfo();
+  try { localStorage.setItem("heart3d-compare", rec.id); } catch {}
+}
+
+let saved = null;
+try { saved = localStorage.getItem("heart3d-compare"); } catch {}
+select(records.find(r => r.id === saved && r !== normal) || records[1]);
+
+const PHASE_TEXT = ["between waves", "P wave", "QRS", "T wave"];
+const scrub = document.getElementById("scrub");
+scrub.max = LEN - 1;
+const speedSel = document.getElementById("speed");
+const playBtn = document.getElementById("play");
+let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+playBtn.textContent = playing ? "Pause" : "Play";
+let t = 0, last = performance.now();
+playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "Pause" : "Play"; });
+scrub.addEventListener("input", () => {
+  playing = false; playBtn.textContent = "Play";
+  t = scrub.valueAsNumber / FS;
+});
+
+function frame(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (playing) t = (t + dt * parseFloat(speedSel.value)) % (LEN / FS);
+  const i = Math.min(LEN - 1, Math.floor(t * FS));
+  if (playing) scrub.value = i;
+
+  normalLoop.dot.position.copy(pointAt(normal.beat, i));
+  abnormalLoop.dot.position.copy(pointAt(current.beat, i));
+  resize3D();
+  controls.update();
+  renderer.render(scene, camera);
+  PLANES.forEach(p => drawPlane(p, i));
+  drawLeads(i);
+
+  const ms = Math.round(((i - R) / FS) * 1000);
+  document.getElementById("clock").textContent =
+    `${ms >= 0 ? "+" : "−"}${Math.abs(ms)} ms from R · normal: ${PHASE_TEXT[normal.beat.phase[i]]} · ${current.name}: ${PHASE_TEXT[current.beat.phase[i]]}`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 
 - Works on a **synthetic** normal heart (no download needed)
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
+- **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
 ## Quick start
 
@@ -17,6 +18,7 @@ python -m http.server 8765
 ```
 
 Open http://localhost:8765/viewer.html, or `?data=ecg_data_real.js` for the real ECG.
+Open http://localhost:8765/compare.html for the normal vs abnormal comparison.
 
 ## Notes (read in order)
 
