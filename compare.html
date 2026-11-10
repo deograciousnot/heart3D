@@ -3,107 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Normal vs Abnormal</title>
+<title>heart3D Compare</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23ff6b6b%22 d=%22M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z%22/%3E%3C/svg%3E">
+<script src="ui.js"></script>
 <style>
-  :root {
-    --bg: #faf9f5; --panel: #ffffff; --text: #1f1e1d; --muted: #6b6a65; --border: #e3e1d9;
-    --grid: #ece9e1; --normal: #8a8984; --accent: #d85a30; --accent-soft: #fbe9e2;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #1a1a18; --panel: #232321; --text: #ecebe6; --muted: #a3a29c; --border: #3a3a36;
-      --grid: #2e2e2b; --normal: #9c9b95; --accent: #e8744c; --accent-soft: #3a2620; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  a { color: var(--accent); }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
-  h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
-  h3 { font-size: 13px; font-weight: 600; margin: 12px 0 2px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  p { margin: 0 0 6px; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-  .picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-  .picker button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
-    background: var(--panel); color: var(--text); cursor: pointer; }
-  .picker button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
-  .planes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-  @media (max-width: 800px) {
+  /* Two series on this page: the normal heart (cool grey-blue) and the selected condition (warm coral). */
+  :root { --normal: var(--trace-2); --cond: var(--qrs); }
+  .picker { margin: 4px 0 14px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; }
+  .planes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+  @media (max-width: 860px) {
     .layout { grid-template-columns: minmax(0, 1fr); }
     .planes { grid-template-columns: minmax(0, 1fr); }
   }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-width: 0; }
-  .full { margin-top: 12px; }
-  #scene { width: 100%; height: 400px; display: block; border-radius: 8px; cursor: grab; touch-action: none; }
+  #scene { width: 100%; height: 420px; display: block; border-radius: 12px; cursor: grab; touch-action: none; }
   .plane { width: 100%; aspect-ratio: 1; display: block; }
   #leads { width: 100%; height: 360px; display: block; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 10px; }
   .swatch { display: inline-block; width: 18px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
-  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; font-size: 14px; }
-  .controls button, .controls select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--panel); color: var(--text); cursor: pointer; }
-  #scrub { flex: 1 1 200px; accent-color: var(--accent); }
-  #clock { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 230px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
-  th:first-child, td:first-child { text-align: left; }
-  thead th { color: var(--muted); font-weight: 600; }
-  td.flag { color: var(--accent); font-weight: 600; }
-  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .error { background: var(--accent-soft); padding: 12px; border-radius: 8px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; padding: 10px 14px; }
+  #scrub { flex: 1 1 200px; }
+  #clock { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 230px; font-size: 13.5px; }
+  #info h3 { font-size: 11.5px; font-weight: 600; margin: 14px 0 3px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+  #info p { margin: 0 0 6px; }
+  .ai-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 5px 0; border-bottom: 1px solid var(--glass-border); }
+  .ai-line b { font-variant-numeric: tabular-nums; }
+  .error { padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--alert) 12%, transparent); }
 </style>
 </head>
 <body>
-<main>
-  <h1>Normal vs abnormal heart vector</h1>
-  <p class="sub">One averaged heartbeat per patient, from real PTB-XL ECGs. Grey is a normal heart, orange is the selected condition.
-    Beats are lined up on the R peak, so the moving dots show both hearts at the same moment.
-    <a href="viewer.html?data=ecg_data_real.js">Back to the live viewer</a></p>
+<div class="wrap">
+  <header class="topbar glass rise">
+    <a class="brand" href="viewer.html" aria-label="heart3D home">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z"/><path d="M3.5 12h4l1.5-3 2.5 6 2-4.5 1.2 1.5h5.8" fill="none" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span><span class="brand-name">heart3D</span> <span class="brand-tag">ECG to 3D heart vector</span></span>
+    </a>
+    <nav class="nav"><a href="viewer.html">Viewer</a><a href="compare.html" aria-current="page">Compare</a></nav>
+    <button class="icon-btn" id="themeToggle" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></button>
+  </header>
 
-  <div class="picker" id="picker" role="group" aria-label="Condition to compare"></div>
+  <section class="rise" style="--d:.05s">
+    <h1>Normal vs abnormal heart vector</h1>
+    <p class="sub">One averaged heartbeat per patient, from real PTB-XL ECGs. <b style="color:var(--normal)">Grey-blue</b> is a normal heart,
+      <b style="color:var(--cond)">coral</b> is the selected condition. Beats are lined up on the R peak, so the moving dots show both hearts at the same moment.</p>
+    <div class="pills picker" id="picker" role="group" aria-label="Condition to compare"></div>
+  </section>
 
   <div class="layout">
-    <div class="card">
+    <div class="glass card rise" style="--d:.1s">
+      <div class="card-title">Both loops in 3D</div>
       <canvas id="scene" aria-label="3D view of both heart vector loops"></canvas>
       <div class="legend">
         <span><span class="swatch" style="background:var(--normal)"></span>Normal</span>
-        <span><span class="swatch" style="background:var(--accent)"></span><span id="legendName"></span></span>
+        <span><span class="swatch" style="background:var(--cond)"></span><span id="legendName"></span></span>
         <span>Thick = QRS (ventricles firing), thin = T (resetting), thinnest = P (atria). Drag to rotate. Viewed from the patient's front.</span>
       </div>
     </div>
-    <div class="card" id="info"></div>
+    <div class="glass card rise" style="--d:.16s" id="info"></div>
   </div>
 
-  <div class="controls">
-    <button id="play">Pause</button>
-    <label>Speed
-      <select id="speed">
-        <option value="0.1">0.1x</option>
-        <option value="0.25" selected>0.25x</option>
-        <option value="0.5">0.5x</option>
-        <option value="1">1x (real time)</option>
-      </select>
-    </label>
+  <div class="controls glass rise" style="--d:.2s">
+    <button class="btn primary" id="play" type="button">Pause</button>
+    <select class="select" id="speed" aria-label="Playback speed">
+      <option value="0.1">0.1×</option>
+      <option value="0.25" selected>0.25×</option>
+      <option value="0.5">0.5×</option>
+      <option value="1">1× real time</option>
+    </select>
     <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Time within the heartbeat">
     <span id="clock"></span>
   </div>
 
   <div class="planes">
-    <div class="card"><h2>Front view</h2><canvas class="plane" id="planeF"></canvas></div>
-    <div class="card"><h2>Top-down view</h2><canvas class="plane" id="planeH"></canvas></div>
-    <div class="card"><h2>Side view (from the left)</h2><canvas class="plane" id="planeS"></canvas></div>
+    <div class="glass card rise" style="--d:.24s"><div class="card-title">Front view</div><canvas class="plane" id="planeF"></canvas></div>
+    <div class="glass card rise" style="--d:.28s"><div class="card-title">Top-down view</div><canvas class="plane" id="planeH"></canvas></div>
+    <div class="glass card rise" style="--d:.32s"><div class="card-title">Side view (from the left)</div><canvas class="plane" id="planeS"></canvas></div>
   </div>
   <p class="note">Dots along the thick loops are every 20 ms. Where they bunch up, the electrical wave is travelling slowly through the heart.</p>
 
-  <div class="card full">
-    <h2>The 12 leads for the same averaged beat</h2>
+  <div class="glass card rise" style="--d:.36s;margin-top:14px">
+    <div class="card-title">The 12 leads for the same averaged beat</div>
     <canvas id="leads" aria-label="12-lead averaged beat, normal and selected condition overlaid"></canvas>
   </div>
 
-  <p class="note">Each condition is one patient, so some differences are just normal variation between people. The 3D vector is estimated with
+  <p class="note" style="margin-top:14px">Each condition is one patient, so some differences are just normal variation between people. The 3D vector is estimated with
     the Kors matrix, which is fitted to average adults. For learning only. This is not a medical device.
     Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0.</p>
-</main>
+</div>
 
 <script type="importmap">
 { "imports": {
@@ -186,7 +173,8 @@ const MAX_MAG = Math.max(...records.flatMap(r => r.beat.phase.map((_, i) => mag(
 // Lead traces are scaled per pair (normal + selected), so small complexes stay readable.
 const maxLeadOf = recs => Math.max(...recs.flatMap(r => r.beat.leads.flat().map(Math.abs)));
 
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const UI = window.HeartUI;
+const css = name => UI.token(name);
 
 // ---------------------------------------------------------------------------
 // Picker + info panel
@@ -194,6 +182,8 @@ const css = name => getComputedStyle(document.documentElement).getPropertyValue(
 const picker = document.getElementById("picker");
 records.slice(1).forEach(r => {
   const b = document.createElement("button");
+  b.className = "pill";
+  b.type = "button";
   b.textContent = r.name;
   b.addEventListener("click", () => select(r));
   r.button = b;
@@ -206,7 +196,9 @@ const fmt = {
   mv: v => `${v.toFixed(2)} mV`,
   bpm: v => `${Math.round(v)}`,
 };
+fmt.msOrNoP = v => (v == null ? "no clear P" : fmt.ms(v));
 const ROWS = [
+  ["PR interval", "prMs", fmt.msOrNoP, (n, a) => a != null && a > 220],
   ["QRS duration", "qrsMs", fmt.ms, (n, a) => a >= 120],
   ["QRS axis (front view)", "qrsAxisDeg", fmt.deg, (n, a) => a < -30 || a > 90],
   ["T axis (front view)", "tAxisDeg", fmt.deg, (n, a) => Math.abs(a - n) > 60],
@@ -214,6 +206,20 @@ const ROWS = [
   ["Peak QRS vector", "qrsPeakMv", fmt.mv, () => false],
   ["Heart rate (bpm)", "bpm", fmt.bpm, () => false],
 ];
+
+/** Measurement model's top reading for both records. Both are training-set ECGs, so this shows what the
+    model learned, not how it does on new patients; the viewer's unseen test ECGs show that. */
+function aiSection() {
+  const line = rec => {
+    const m = rec.data.ai?.models?.features;
+    if (!m) return "";
+    const [cls, p] = Object.entries(m.probs).sort((a, b) => b[1] - a[1])[0];
+    return `<div class="ai-line"><span>${rec.name}</span><span>${rec.data.ai.classNames[cls]} <b>${Math.round(p * 100)}%</b></span></div>`;
+  };
+  const rows = line(normal) + line(current);
+  return rows ? `<h3>AI reading (measurement model)</h3>${rows}
+    <p class="note">Both ECGs were in the training data, so this shows what the model learned. The viewer's unseen test ECGs show how it does on new patients.</p>` : "";
+}
 
 function renderInfo() {
   const n = normal.beat.stats, a = current.beat.stats;
@@ -229,8 +235,9 @@ function renderInfo() {
       <thead><tr><th></th><th>Normal</th><th>${current.name}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="note">Orange values are outside the usual adult range. PTB-XL records ${normal.record} and ${current.record}.
-      <a href="viewer.html?data=${current.file}">Play the full recording</a></p>
+    <p class="note">Coral values are outside the usual adult range. PTB-XL records ${normal.record} and ${current.record}.
+      <a href="viewer.html?data=${current.file}">Open in the viewer</a></p>
+    ${aiSection()}
     ${caveats}`;
   document.getElementById("legendName").textContent = current.name;
 }
@@ -254,7 +261,7 @@ scene.add(sun);
 
 const heart = new THREE.Mesh(
   new THREE.SphereGeometry(0.75, 48, 32),
-  new THREE.MeshStandardMaterial({ color: 0xd85a30, transparent: true, opacity: 0.1, roughness: 0.6, depthWrite: false })
+  new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--heart")), transparent: true, opacity: 0.1, roughness: 0.6, depthWrite: false })
 );
 heart.scale.set(0.85, 1.15, 0.8);
 heart.rotation.z = Math.PI / 5;
@@ -269,9 +276,9 @@ function makeLabel(text) {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 64;
   const g = c.getContext("2d");
-  g.font = "600 34px system-ui, sans-serif";
+  g.font = "600 34px Inter, system-ui, sans-serif";
   g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillStyle = "#a3a29c"; g.fillText(text, 128, 32);
+  g.fillStyle = "#8ea7b4"; g.fillText(text, 128, 32);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
   sprite.scale.set(0.8, 0.2, 1);
   return sprite;
@@ -280,7 +287,7 @@ function makeLabel(text) {
   const s = makeLabel(t); s.position.copy(p); scene.add(s);
 });
 // Faint axes through the centre of the heart.
-const axisMat = new THREE.LineBasicMaterial({ color: 0x8a8984, transparent: true, opacity: 0.35 });
+const axisMat = new THREE.LineBasicMaterial({ color: 0x7f97a4, transparent: true, opacity: 0.35 });
 [[2, 0, 0], [0, 2, 0], [0, 0, 2]].forEach(([x, y, z]) => {
   const a = toScene(-x, -y, -z), b = toScene(x, y, z);
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), axisMat));
@@ -313,6 +320,12 @@ function buildLoop(beat, color) {
 const colorOf = name => new THREE.Color(css(name));
 const normalLoop = buildLoop(normal.beat, colorOf("--normal"));
 let abnormalLoop = null;
+const recolor = (loop, name) => loop?.group.traverse(o => { if (o.material) o.material.color = colorOf(name); });
+UI.onThemeChange(() => {
+  recolor(normalLoop, "--normal");
+  recolor(abnormalLoop, "--cond");
+  heart.material.color = colorOf("--heart");
+});
 
 function resize3D() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -346,7 +359,7 @@ function drawPlane(p, i) {
 
   g.strokeStyle = css("--grid"); g.lineWidth = 1;
   g.beginPath(); g.moveTo(18, cy); g.lineTo(w - 18, cy); g.moveTo(cx, 18); g.lineTo(cx, h - 18); g.stroke();
-  g.fillStyle = css("--muted"); g.font = "12px system-ui, sans-serif";
+  g.fillStyle = css("--muted"); g.font = "12px Inter, system-ui, sans-serif";
   g.textBaseline = "middle";
   g.textAlign = "left"; g.fillText(p.labels.left, 2, cy - 10);
   g.textAlign = "right"; g.fillText(p.labels.right, w - 2, cy - 10);
@@ -354,7 +367,7 @@ function drawPlane(p, i) {
   g.fillText(p.labels.top, cx + 22, 9);
   g.fillText(p.labels.bottom, cx + 22, h - 9);
 
-  for (const [rec, color] of [[normal, css("--normal")], [current, css("--accent")]]) {
+  for (const [rec, color] of [[normal, css("--normal")], [current, css("--cond")]]) {
     const b = rec.beat;
     g.strokeStyle = color; g.fillStyle = color; g.lineCap = "round"; g.lineJoin = "round";
     for (let k = 1; k < LEN; k++) {
@@ -372,7 +385,7 @@ function drawPlane(p, i) {
     }
     const [x, y] = at(vecOf(b, i));
     g.beginPath(); g.arc(x, y, 5, 0, 2 * Math.PI); g.fill();
-    g.strokeStyle = css("--panel"); g.lineWidth = 1.5; g.stroke();
+    g.strokeStyle = css("--bg"); g.lineWidth = 1.5; g.stroke();
   }
 }
 
@@ -402,11 +415,11 @@ function drawLeads(i) {
 
     lg.strokeStyle = css("--grid"); lg.lineWidth = 1;
     lg.beginPath(); lg.moveTo(x0, mid); lg.lineTo(x0 + plotW, mid); lg.stroke();
-    lg.fillStyle = css("--muted"); lg.font = "600 12px system-ui, sans-serif";
+    lg.fillStyle = css("--muted"); lg.font = "600 12px Inter, system-ui, sans-serif";
     lg.textAlign = "left"; lg.textBaseline = "middle";
     lg.fillText(normal.data.leadNames[k], col * cw + 4, mid);
 
-    for (const [rec, color, width] of [[normal, css("--normal"), 1.3], [current, css("--accent"), 1.7]]) {
+    for (const [rec, color, width] of [[normal, css("--normal"), 1.3], [current, css("--cond"), 1.7]]) {
       lg.strokeStyle = color; lg.lineWidth = width;
       lg.beginPath();
       for (let j = 0; j < LEN; j++) {
@@ -431,7 +444,7 @@ function select(rec) {
     scene.remove(abnormalLoop.group);
     abnormalLoop.group.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
   }
-  abnormalLoop = buildLoop(rec.beat, colorOf("--accent"));
+  abnormalLoop = buildLoop(rec.beat, colorOf("--cond"));
   renderInfo();
   try { localStorage.setItem("heart3d-compare", rec.id); } catch {}
 }

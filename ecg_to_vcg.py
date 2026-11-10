@@ -136,7 +136,7 @@ def clean_ecg(signals, fs, low_hz=0.5, high_hz=40.0):
     return filtfilt(b, a, signals, axis=-1)
 
 
-BEAT_BEFORE_MS, BEAT_AFTER_MS = 300, 550  # median-beat window around the R peak
+BEAT_BEFORE_MS, BEAT_AFTER_MS = 450, 550  # median-beat window around the R peak (450 ms: room for a long PR)
 
 
 def find_r_peaks(h, fs):
@@ -197,21 +197,74 @@ def qrs_bounds(vec, r_index, fs):
     return onset, offset
 
 
-def phase_windows(onset, offset, fs):
-    """(label, start, end) for P / QRS / T, placed relative to the measured QRS onset and offset."""
+def p_wave_bounds(vec, qrs_onset, fs, rr):
+    """
+    P wave onset / offset on the baseline-corrected median beat, or None when there's no clear P
+    (e.g. atrial fibrillation).
+
+    The search covers up to 400 ms before the QRS (never more than 45% of the beat-to-beat interval).
+    The tail of the previous T wave can reach into that stretch, so the P wave is the strong bump in
+    |h| CLOSEST to the QRS, not simply the biggest. Its edges are where |h| drops below a quarter of
+    the bump, or where it starts rising again (the dip that separates P from the T before it).
+    """
+    from scipy.signal import find_peaks
+
     ms = lambda x: int(round(x * fs / 1000))
+    reach = min(ms(400), int(0.45 * rr)) if np.isfinite(rr) else ms(400)
+    lo, hi = max(0, qrs_onset - reach), qrs_onset - ms(40)
+    if hi - lo < ms(40):
+        return None
+    # Smooth over 10 ms first, so high-resolution noise (500 Hz) doesn't split one P wave into several bumps.
+    # At 100 Hz that is a single sample: no change.
+    width = max(1, ms(10))
+    magnitude = np.convolve(np.linalg.norm(vec, axis=0), np.ones(width) / width, mode="same")
+    seg = magnitude[lo:hi]
+    bumps, _ = find_peaks(np.concatenate([[0.0], seg, [0.0]]))
+    # 0.05 mV floor: real P waves peak around 0.13 mV (10th percentile 0.08) in normal PTB-XL ECGs,
+    # while what's left of fibrillation waves in an averaged AF beat peaks around 0.04.
+    bumps = [b - 1 for b in bumps if seg[b - 1] >= max(0.05, 0.5 * seg.max())]
+    if not bumps:
+        return None
+    peak = lo + bumps[-1]
+    top = magnitude[peak]
+
+    def edge(step, limit):
+        """Walk away from the peak; stop below a quarter of it, or at a dip it clearly climbs out of."""
+        i, best = peak, peak
+        while i != limit:
+            i += step
+            if magnitude[i] < magnitude[best]:
+                best = i
+            if magnitude[i] < 0.25 * top:
+                return i
+            if magnitude[i] > magnitude[best] + 0.2 * top:  # rising again: that was the dip
+                return best
+        # Reached the edge of the search: accept the lowest point if it's clearly below the peak.
+        return best if magnitude[best] < 0.5 * top else None
+
+    on, off = edge(-1, lo), edge(+1, qrs_onset - 1)
+    if on is None or off is None:
+        return None
+    return on, off + 1
+
+
+def phase_windows(onset, offset, fs, p=None):
+    """(label, start, end) for P / QRS / T relative to the measured QRS; P is measured when available."""
+    ms = lambda x: int(round(x * fs / 1000))
+    p_start, p_end = p if p else (onset - ms(180), onset - ms(50))
     return [
-        (1, onset - ms(180), onset - ms(50)),   # P wave
+        (1, p_start, p_end),                    # P wave
         (2, onset, offset),                     # QRS
         (3, offset + ms(60), onset + ms(440)),  # T wave
     ]
 
 
-def label_phases(n, fs, centres, onset, offset):
-    """Phase labels for an n-sample signal; onset/offset are relative to each centre (R peak)."""
+def label_phases(n, fs, centres, onset, offset, p=None):
+    """Phase labels for an n-sample signal; onset/offset (and p) are relative to each centre (R peak)."""
     phase = np.zeros(n, dtype=int)
     for c in centres:
-        for label, a, b in phase_windows(c + onset, c + offset, fs):
+        pc = (c + p[0], c + p[1]) if p else None
+        for label, a, b in phase_windows(c + onset, c + offset, fs, pc):
             phase[max(0, a):max(0, b)] = label
     return phase
 
@@ -239,13 +292,17 @@ def analyse_beats(h, leads, fs):
     vec = vec - vec[:, base].mean(axis=1, keepdims=True)
     beat_leads = beat_leads - beat_leads[:, base].mean(axis=1, keepdims=True)
 
-    phase = label_phases(vec.shape[1], fs, [0], onset, offset)
+    rr = float(np.median(np.diff(aligned))) if len(aligned) > 1 else float("nan")
+    p_wave = p_wave_bounds(vec, onset, fs, rr)
+    phase = label_phases(vec.shape[1], fs, [0], onset, offset, p_wave)
     mean_qrs = vec[:, phase == 2].mean(axis=1)
     mean_t = vec[:, phase == 3].mean(axis=1)
     frontal_axis = lambda v: float(np.degrees(np.arctan2(v[1], v[0])))
     stats = {
         "beats": int(len(aligned)),
-        "bpm": float(60 * fs / np.median(np.diff(aligned))) if len(aligned) > 1 else float("nan"),
+        "bpm": 60 * fs / rr,
+        "prMs": float((onset - p_wave[0]) * 1000 / fs) if p_wave else None,  # P start -> QRS start
+        "pMs": float((p_wave[1] - p_wave[0]) * 1000 / fs) if p_wave else None,  # P wave duration
         "qrsMs": float((offset - onset) * 1000 / fs),
         "qrsAxisDeg": frontal_axis(mean_qrs),
         "tAxisDeg": frontal_axis(mean_t),
@@ -255,14 +312,15 @@ def analyse_beats(h, leads, fs):
     # Beats too close to the edges were left out of the median; keep them for labelling the recording.
     edge = [p for p in peaks if np.min(np.abs(aligned - p)) > ms(200)]
     return {"vector": vec, "leads": beat_leads, "phase": phase, "rIndex": r_index,
-            "onset": onset, "offset": offset, "peaks": np.sort(np.concatenate([aligned, edge])).astype(int),
-            "stats": stats}
+            "onset": onset, "offset": offset, "pWave": p_wave,
+            "peaks": np.sort(np.concatenate([aligned, edge])).astype(int), "stats": stats}
 
 
 def detect_phases(n, fs, beat):
-    """P / QRS / T labels for the whole recording: the median beat's QRS onset/offset, applied to every beat."""
+    """P / QRS / T labels for the whole recording: the median beat's P and QRS timing, applied to every beat."""
     r = beat["rIndex"]
-    return label_phases(n, fs, beat["peaks"], beat["onset"] - r, beat["offset"] - r)
+    p = (beat["pWave"][0] - r, beat["pWave"][1] - r) if beat["pWave"] else None
+    return label_phases(n, fs, beat["peaks"], beat["onset"] - r, beat["offset"] - r, p)
 
 
 def read_record(path):
@@ -303,6 +361,8 @@ def main():
     parser.add_argument("--wfdb", help="path to a WFDB record (without extension), e.g. PTB-XL records500/00000/00001_hr")
     parser.add_argument("--out", default="ecg_data.js", help="output file the viewer loads")
     parser.add_argument("--label", help="short diagnosis label shown in the viewers, e.g. 'Left bundle branch block'")
+    parser.add_argument("--ai", action="store_true",
+                        help="add both trained models' reading (PTB-XL records only; needs models/ and ptbxl/records100/)")
     args = parser.parse_args()
 
     if args.wfdb:
@@ -325,7 +385,8 @@ def main():
         source = "Synthetic normal heart (least-squares reconstruction)"
 
     s = beat["stats"]
-    print(f"Median of {s['beats']} beats: QRS {s['qrsMs']:.0f} ms, QRS axis {s['qrsAxisDeg']:.0f} deg, "
+    pr = f"{s['prMs']:.0f} ms" if s["prMs"] is not None else "no clear P wave"
+    print(f"Median of {s['beats']} beats: PR {pr}, QRS {s['qrsMs']:.0f} ms, QRS axis {s['qrsAxisDeg']:.0f} deg, "
           f"T axis {s['tAxisDeg']:.0f} deg, QRS-T angle {s['qrsTAngleDeg']:.0f} deg, peak {s['qrsPeakMv']:.2f} mV")
 
     # Downsample to 250 Hz for the browser; plenty for drawing.
@@ -345,9 +406,16 @@ def main():
             "leads": np.round(beat["leads"][:, ::step], 4).tolist(),
             "phase": beat["phase"][::step].tolist(),
             "rIndex": beat["rIndex"] // step,
-            "stats": {k: round(v, 3) for k, v in s.items()},
+            "stats": {k: (round(v, 3) if v is not None else None) for k, v in s.items()},
         },
     }
+    if args.ai and args.wfdb:
+        import re
+        from predict import ai_reading
+        ecg_id = int(re.match(r"(\d+)_", os.path.basename(args.wfdb)).group(1))  # "00338_hr" -> 338
+        data["ai"] = ai_reading(ecg_id)
+        print("AI reading added: " + ", ".join(
+            f"{m['name']} {max(m['probs'], key=m['probs'].get)}" for m in data["ai"]["models"].values()))
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("window.ECG_DATA = " + json.dumps(data) + ";\n")
     print(f"Wrote {args.out} ({data['vector'][0].__len__()} frames at {data['fs']:.0f} Hz)")

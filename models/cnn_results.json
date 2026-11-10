@@ -1,0 +1,56 @@
+{
+  "model": "1D ResNet on raw 12-lead signal (391,941 weights)",
+  "best_epoch": 20,
+  "train": 17084,
+  "val": 2146,
+  "test": 2158,
+  "classes": {
+    "NORM": {
+      "name": "Normal",
+      "val_auc": 0.9481706164470878,
+      "test_auc": 0.9481232376160621,
+      "threshold": 0.5083305239677429,
+      "test_sensitivity": 0.9096573208722741,
+      "test_specificity": 0.8384937238493724,
+      "test_positives": 963
+    },
+    "MI": {
+      "name": "Heart attack (MI)",
+      "val_auc": 0.9359070153590702,
+      "test_auc": 0.930906829488919,
+      "threshold": 0.15571556985378265,
+      "test_sensitivity": 0.8636363636363636,
+      "test_specificity": 0.835820895522388,
+      "test_positives": 550
+    },
+    "STTC": {
+      "name": "ST/T change",
+      "val_auc": 0.931621530509046,
+      "test_auc": 0.9369404966953031,
+      "threshold": 0.17349515855312347,
+      "test_sensitivity": 0.8733205374280231,
+      "test_specificity": 0.8460598656078192,
+      "test_positives": 521
+    },
+    "CD": {
+      "name": "Conduction disturbance",
+      "val_auc": 0.9392238557592887,
+      "test_auc": 0.9236745953185048,
+      "threshold": 0.12636572122573853,
+      "test_sensitivity": 0.8266129032258065,
+      "test_specificity": 0.8796630565583634,
+      "test_positives": 496
+    },
+    "HYP": {
+      "name": "Hypertrophy",
+      "val_auc": 0.9080754375089408,
+      "test_auc": 0.9007734241633651,
+      "threshold": 0.06531300395727158,
+      "test_sensitivity": 0.8015267175572519,
+      "test_specificity": 0.8422995780590717,
+      "test_positives": 262
+    }
+  },
+  "macro_val_auc": 0.9325996911166868,
+  "macro_test_auc": 0.9280837166564309
+}

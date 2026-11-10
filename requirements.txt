@@ -1,4 +1,5 @@
 numpy
 scipy
 wfdb
-scikit-learn  # train_features.py
+scikit-learn  # train_features.py, predict.py
+torch         # train_cnn.py, predict.py (CPU build is enough)

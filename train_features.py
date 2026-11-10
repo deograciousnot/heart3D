@@ -2,7 +2,8 @@
 Baseline 1: an explainable classifier built on the heart-vector measurements.
 
 Every ECG goes through the same pipeline as the viewers (filter -> Kors -> median beat),
-then ~90 measurements of that beat become the features:
+then 81 measurements of that beat become the features:
+  - timing: PR interval and P duration (or "no clear P wave"), QRS width, heart rate
   - heart vector: QRS width, axes, QRS-T angle, mean / initial / terminal / peak QRS vectors, T vector, loop areas
   - per lead: QRS max and min, ST level 60 ms after the QRS, T amplitude
 A gradient-boosted tree model per class predicts NORM / MI / STTC / CD / HYP.
@@ -25,7 +26,7 @@ import numpy as np
 from ecg_to_vcg import LEAD_NAMES, analyse_beats, inverse_kors, load_wfdb
 from ptbxl_data import CLASS_NAMES, CLASSES, ROOT, load_table, split_masks
 
-CACHE = os.path.join(ROOT, "features_100hz.npz")
+CACHE = os.path.join(ROOT, "features_100hz_v2.npz")  # v2: adds PR interval
 MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
 
@@ -42,7 +43,9 @@ def beat_features(beat, fs):
     qrs = v[:, on:off]
     t_mask = ph == 3
 
+    no_p = s["prMs"] is None  # no clear P wave: atrial fibrillation, flutter, or just too small to see
     f = {
+        "pr_ms": np.nan if no_p else s["prMs"], "p_ms": np.nan if no_p else s["pMs"], "p_missing": float(no_p),
         "qrs_ms": s["qrsMs"], "bpm": s["bpm"], "qrs_t_angle": s["qrsTAngleDeg"], "qrs_peak_mv": s["qrsPeakMv"],
         "qrs_axis_sin": np.sin(np.radians(s["qrsAxisDeg"])), "qrs_axis_cos": np.cos(np.radians(s["qrsAxisDeg"])),
         "t_axis_sin": np.sin(np.radians(s["tAxisDeg"])), "t_axis_cos": np.cos(np.radians(s["tAxisDeg"])),
@@ -140,12 +143,13 @@ def main():
     results = {"model": "HistGradientBoosting on heart-vector + per-lead median-beat features",
                "features": len(names), "train": int(train.sum()), "val": int(val.sum()), "test": int(test.sum()),
                "classes": {}}
-    start = time.time()
+    start, fitted = time.time(), []
     for c, cls in enumerate(CLASSES):
         model = HistGradientBoostingClassifier(max_iter=400, learning_rate=0.05, max_leaf_nodes=31,
                                                l2_regularization=1.0, class_weight="balanced",
                                                early_stopping=False, random_state=0)
         model.fit(X[train], Y[train, c])
+        fitted.append(model)
         p_val = model.predict_proba(X[val])[:, 1]
         thr = best_threshold(Y[val, c], p_val)
         r = results["classes"][cls] = {"name": CLASS_NAMES[cls], "val_auc": float(roc_auc_score(Y[val, c], p_val)),
@@ -165,6 +169,14 @@ def main():
         results["macro_test_auc"] = float(np.mean([r["test_auc"] for r in results["classes"].values()]))
         summary += f", test {results['macro_test_auc']:.3f}"
     print(f"{summary} ({time.time() - start:.0f} s training)")
+
+    # Saved for predict.py: the models, each class's threshold, and the training medians of every
+    # feature (used to explain a prediction by resetting groups of features to "typical").
+    import pickle
+    os.makedirs(MODELS, exist_ok=True)
+    with open(os.path.join(MODELS, "feature_model.pkl"), "wb") as f:
+        pickle.dump({"names": names, "models": fitted, "medians": np.nanmedian(X[train], axis=0),
+                     "thresholds": [results["classes"][c]["threshold"] for c in CLASSES]}, f)
     if not args.test:
         print("Test fold not scored. Run with --test once the model is final.")
         return

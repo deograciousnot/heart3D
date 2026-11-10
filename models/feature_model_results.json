@@ -1,56 +1,56 @@
 {
   "model": "HistGradientBoosting on heart-vector + per-lead median-beat features",
-  "features": 78,
+  "features": 81,
   "train": 17084,
   "val": 2146,
   "test": 2158,
   "classes": {
     "NORM": {
       "name": "Normal",
-      "val_auc": 0.9436568328783502,
-      "threshold": 0.4109340001155006,
-      "test_auc": 0.9361861685718879,
-      "test_sensitivity": 0.9273104880581516,
-      "test_specificity": 0.7958158995815899,
+      "val_auc": 0.942283531371851,
+      "threshold": 0.5811299934424717,
+      "test_auc": 0.9376195379675614,
+      "test_sensitivity": 0.8878504672897196,
+      "test_specificity": 0.8410041841004184,
       "test_positives": 963
     },
     "MI": {
       "name": "Heart attack (MI)",
-      "val_auc": 0.9273914948572483,
-      "threshold": 0.29400181216777865,
-      "test_auc": 0.9282078245137947,
-      "test_sensitivity": 0.8745454545454545,
-      "test_specificity": 0.8283582089552238,
+      "val_auc": 0.9267077164337438,
+      "threshold": 0.2999645413848629,
+      "test_auc": 0.9283011080958842,
+      "test_sensitivity": 0.8654545454545455,
+      "test_specificity": 0.8308457711442786,
       "test_positives": 550
     },
     "STTC": {
       "name": "ST/T change",
-      "val_auc": 0.9280209386822489,
-      "threshold": 0.38874342474463247,
-      "test_auc": 0.9307707910988336,
-      "test_sensitivity": 0.8541266794625719,
-      "test_specificity": 0.8607208307880269,
+      "val_auc": 0.9241909203281268,
+      "threshold": 0.39209213566557966,
+      "test_auc": 0.9302249914114227,
+      "test_sensitivity": 0.8426103646833013,
+      "test_specificity": 0.8637751985339035,
       "test_positives": 521
     },
     "CD": {
       "name": "Conduction disturbance",
-      "val_auc": 0.8947206773978427,
-      "threshold": 0.44874795526997996,
-      "test_auc": 0.8869633360506192,
-      "test_sensitivity": 0.6895161290322581,
+      "val_auc": 0.9044117737031122,
+      "threshold": 0.42659531722067123,
+      "test_auc": 0.89539723322076,
+      "test_sensitivity": 0.717741935483871,
       "test_specificity": 0.9157641395908543,
       "test_positives": 496
     },
     "HYP": {
       "name": "Hypertrophy",
-      "val_auc": 0.9082920064215663,
-      "threshold": 0.2502920951110111,
-      "test_auc": 0.9061785357683512,
-      "test_sensitivity": 0.7748091603053435,
-      "test_specificity": 0.8612869198312236,
+      "val_auc": 0.9118226757585873,
+      "threshold": 0.3231611080698357,
+      "test_auc": 0.9060496988436886,
+      "test_sensitivity": 0.7290076335877863,
+      "test_specificity": 0.8908227848101266,
       "test_positives": 262
     }
   },
-  "macro_val_auc": 0.9204163900474512,
-  "macro_test_auc": 0.9176613312006973
+  "macro_val_auc": 0.9218833235190843,
+  "macro_test_auc": 0.9195185139078633
 }

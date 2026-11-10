@@ -3,70 +3,114 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>3D Heart Vector</title>
+<title>heart3D Viewer</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23ff6b6b%22 d=%22M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z%22/%3E%3C/svg%3E">
+<script src="ui.js"></script>
 <style>
-  :root {
-    --bg: #faf9f5; --panel: #ffffff; --text: #1f1e1d; --muted: #6b6a65; --border: #e3e1d9;
-    --grid: #f0d6d0; --trace: #1f1e1d;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #1a1a18; --panel: #232321; --text: #ecebe6; --muted: #a3a29c; --border: #3a3a36;
-      --grid: #3d2a26; --trace: #ecebe6; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
-  @media (max-width: 800px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
-  #scene { width: 100%; height: 440px; display: block; border-radius: 8px; cursor: grab; }
-  #strips { width: 100%; height: 440px; display: block; }
-  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; font-size: 14px; }
-  button, select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--panel); color: var(--text); cursor: pointer; }
-  .phase { font-weight: 600; min-width: 220px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin: 4px 2px 14px; }
+  .head .titles { flex: 1 1 360px; min-width: 0; }
+  .head .controls { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center;
+    flex: 1 1 300px; max-width: 420px; min-width: 0; }
+  .head .select { min-width: 0; width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+  @media (max-width: 960px) { .main { grid-template-columns: minmax(0, 1fr); } }
+  #scene { width: 100%; height: 460px; display: block; border-radius: 12px; cursor: grab; touch-action: none; }
+  @media (max-width: 600px) { #scene { height: 340px; } }
+  .scene-foot { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 10px currentColor; }
+  .play-row { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  #strips { width: 100%; height: 400px; display: block; }
+  @media (max-width: 600px) { #strips { height: 560px; } }
+  .ai-empty { color: var(--muted); font-size: 14px; }
+  .prob { cursor: pointer; border-radius: 10px; padding: 4px 6px; margin: 0 -6px; transition: background .2s; }
+  .prob:hover, .prob[aria-current="true"] { background: var(--glass-strong); }
+  .focus-title { font-size: 14px; margin: 14px 0 2px; }
+  .focus-title b { color: var(--text); }
+  .hl { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .hl b { font-weight: 600; }
+  .model-meta { font-size: 12px; color: var(--faint); margin: 8px 0 12px; }
 </style>
-</head>
-<body>
-<main>
-  <h1>3D heart vector</h1>
-  <p class="sub" id="source"></p>
-  <div class="layout">
-    <div class="card">
-      <canvas id="scene"></canvas>
-      <div class="legend">
-        <span><span class="dot" style="background:#3b8bd4"></span>P wave</span>
-        <span><span class="dot" style="background:#d85a30"></span>QRS</span>
-        <span><span class="dot" style="background:#1d9e75"></span>T wave</span>
-        <span>Lead lines: green = wave coming toward it, orange = going away</span>
-      </div>
-    </div>
-    <div class="card"><canvas id="strips"></canvas></div>
-  </div>
-  <div class="controls">
-    <button id="play">Pause</button>
-    <label>Speed
-      <select id="speed">
-        <option value="0.1">0.1x</option>
-        <option value="0.25" selected>0.25x</option>
-        <option value="0.5">0.5x</option>
-        <option value="1">1x (real time)</option>
-      </select>
-    </label>
-    <label><input type="checkbox" id="showLeads" checked> Show lead directions</label>
-    <span class="phase" id="phase"></span>
-  </div>
-</main>
-
 <script>
-  // Pick the data file from the URL, e.g. viewer.html?data=ecg_data_real.js (defaults to the synthetic one).
-  const dataFile = new URLSearchParams(location.search).get("data") || "ecg_data.js";
+  // Which recording to show: viewer.html?data=data/ptbxl_00338.js (defaults to an unseen test ECG).
+  const dataFile = new URLSearchParams(location.search).get("data") || "data/ptbxl_01737.js";
+  document.write('<script src="data/records.js"><\/script>');
   if (/^(data\/)?[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
 </script>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar glass rise">
+    <a class="brand" href="viewer.html" aria-label="heart3D home">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z"/><path d="M3.5 12h4l1.5-3 2.5 6 2-4.5 1.2 1.5h5.8" fill="none" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span><span class="brand-name">heart3D</span> <span class="brand-tag">ECG to 3D heart vector</span></span>
+    </a>
+    <nav class="nav"><a href="viewer.html" aria-current="page">Viewer</a><a href="compare.html">Compare</a></nav>
+    <button class="icon-btn" id="themeToggle" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></button>
+  </header>
+
+  <section class="head rise" style="--d:.05s">
+    <div class="titles">
+      <h1 id="title">3D heart vector</h1>
+      <p class="sub" id="source" style="margin:0"></p>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="controls">
+      <label class="note" for="record">Recording</label>
+      <select class="select" id="record"></select>
+    </div>
+  </section>
+
+  <section class="vitals" aria-label="Measurements of the averaged beat">
+    <div class="vital glass rise" style="--d:.08s"><div class="k">Heart rate</div><div class="v" id="vHr">–</div><div class="hint">normal 60–100</div></div>
+    <div class="vital glass rise" style="--d:.11s"><div class="k">PR interval</div><div class="v" id="vPr">–</div><div class="hint" id="hPr">atria to ventricles</div></div>
+    <div class="vital glass rise" style="--d:.14s"><div class="k">QRS width</div><div class="v" id="vQrs">–</div><div class="hint">normal under 120 ms</div></div>
+    <div class="vital glass rise" style="--d:.17s"><div class="k">QRS axis</div><div class="v" id="vAxis">–</div><div class="hint">normal −30° to 90°</div></div>
+    <div class="vital glass rise" style="--d:.20s"><div class="k">QRS–T angle</div><div class="v" id="vAngle">–</div><div class="hint">usually under 105°</div></div>
+    <div class="vital glass rise" style="--d:.23s"><div class="k">Right now</div><div class="v" id="vPhase" style="font-size:17px;padding-top:5px">–</div><div class="hint" id="hPhase">&nbsp;</div></div>
+  </section>
+
+  <section class="main">
+    <div class="glass card rise" style="--d:.26s">
+      <div class="card-title">Heart vector in 3D <span class="spacer"></span><span class="chip live" id="liveChip"><span class="dot"></span>Live</span></div>
+      <canvas id="scene" aria-label="3D view of the heart vector"></canvas>
+      <div class="scene-foot">
+        <div class="legend">
+          <span><i style="color:var(--p);background:var(--p)"></i>P wave</span>
+          <span><i style="color:var(--qrs);background:var(--qrs)"></i>QRS</span>
+          <span><i style="color:var(--t);background:var(--t)"></i>T wave</span>
+          <span>Lead lines: <b style="color:var(--pos)">toward</b> / <b style="color:var(--neg)">away</b></span>
+        </div>
+        <div class="play-row">
+          <button class="btn primary" id="play" type="button">Pause</button>
+          <select class="select" id="speed" aria-label="Playback speed">
+            <option value="0.1">0.1×</option>
+            <option value="0.25" selected>0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1">1× real time</option>
+          </select>
+          <label class="toggle"><input type="checkbox" id="showLeads" checked> Leads</label>
+        </div>
+      </div>
+    </div>
+
+    <aside class="glass card rise" style="--d:.32s" id="ai" aria-label="AI reading">
+      <div class="card-title">AI reading <span class="spacer"></span><span class="chip">Not a diagnosis</span></div>
+      <div id="aiBody"><p class="ai-empty">Loading…</p></div>
+    </aside>
+  </section>
+
+  <section class="glass card rise" style="--d:.38s;margin-top:14px">
+    <div class="card-title">12-lead ECG <span class="spacer"></span><span class="note" style="text-transform:none;letter-spacing:0;font-weight:400">2.5 s sweep, in sync with the 3D view</span></div>
+    <canvas id="strips" aria-label="12-lead ECG strips"></canvas>
+  </section>
+
+  <p class="note" style="margin-top:14px">For learning only. This is not a medical device and its readings are not diagnoses.
+    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0. Drag the 3D view to rotate, scroll to zoom.</p>
+</div>
+
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -78,171 +122,358 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const D = window.ECG_DATA;
+const UI = window.HeartUI;
+const $ = id => document.getElementById(id);
+if (!D) {
+  $("aiBody").innerHTML = '<p class="ai-empty">Couldn\'t load the recording. Run <code>python -m http.server 8765</code> in the project folder and open this page from there.</p>';
+  throw new Error("no ECG data");
+}
 const N = D.vector[0].length;
-const PHASE_COLORS = [0x888780, 0x3b8bd4, 0xd85a30, 0x1d9e75];
-const PHASE_TEXT = ["Between beats", "P wave: atria firing", "QRS: ventricles firing", "T wave: ventricles resetting"];
-// Scale so the biggest heart vector reaches ~2 scene units, whatever the recording's amplitude.
-const maxMag = Math.max(...D.vector[0].map((_, i) => Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i])));
-const SCALE = 2 / maxMag;
-const maxLead = Math.max(...D.leads.flat().map(Math.abs));
-const sourceEl = document.getElementById("source");
-sourceEl.textContent = `${D.label ? D.label + ". " : ""}${D.source}. Drag to rotate, scroll to zoom. Viewed from the front of the patient. `;
-const compareLink = Object.assign(document.createElement("a"), { href: "compare.html", textContent: "Compare normal vs abnormal" });
-sourceEl.appendChild(compareLink);
+const PHASE_TEXT = ["Between beats", "P wave", "QRS complex", "T wave"];
+const PHASE_HINT = ["electrically quiet", "atria firing", "ventricles firing", "ventricles resetting"];
+const PHASE_TOKENS = ["--base", "--p", "--qrs", "--t"];
+const color = name => new THREE.Color(UI.token(name));
 
-// Frank (x left, y feet, z back) -> three.js (x right on screen = patient's left, y up, z towards viewer = front)
-const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z);
-const vecAt = i => toScene(D.vector[0][i], D.vector[1][i], D.vector[2][i]).multiplyScalar(SCALE);
+// ---------------------------------------------------------------------------
+// Header: title, record picker, chips
+// ---------------------------------------------------------------------------
+const AI = D.ai;
+$("title").textContent = D.label || "3D heart vector";
+$("source").textContent = D.source;
+document.title = `${D.label || "Heart vector"} · heart3D`;
 
-// --- 3D scene ---
-const canvas = document.getElementById("scene");
+const GROUP_NAMES = { test: "Unseen test ECGs", comparison: "Comparison examples (seen in training)", synthetic: "Synthetic" };
+const records = window.ECG_RECORDS || [];
+const picker = $("record");
+for (const group of ["test", "comparison", "synthetic"]) {
+  const og = document.createElement("optgroup");
+  og.label = GROUP_NAMES[group];
+  records.filter(r => r.group === group).forEach(r => {
+    const o = new Option(r.record ? `${r.label} · #${Number(r.record)}` : r.label, r.file);
+    o.selected = r.file === dataFile;
+    og.appendChild(o);
+  });
+  if (og.children.length) picker.appendChild(og);
+}
+picker.addEventListener("change", () => { location.search = `?data=${encodeURIComponent(picker.value)}`; });
+
+const chips = [];
+if (AI) {
+  chips.push(AI.seen === "test"
+    ? '<span class="chip ok"><span class="dot"></span>Unseen test ECG: no model saw it while training</span>'
+    : `<span class="chip warn"><span class="dot"></span>Seen in ${AI.seen}: the models have learned from this ECG</span>`);
+  chips.push(`<span class="chip">Cardiologist: ${AI.truth.map(c => AI.classNames[c]).join(", ") || "no diagnostic label"}</span>`);
+} else if (D.source.startsWith("Synthetic")) {
+  chips.push('<span class="chip">Synthetic heart: no AI reading</span>');
+} else {
+  chips.push('<span class="chip">No AI reading in this file. Rebuild it with make_demo_data.py</span>');
+}
+$("chips").innerHTML = chips.join("");
+
+// ---------------------------------------------------------------------------
+// Vitals (from the averaged beat)
+// ---------------------------------------------------------------------------
+const S = D.beat?.stats || {};
+const setVital = (id, value, unit, flag) => {
+  const el = $(id);
+  el.innerHTML = value == null || Number.isNaN(value) ? "–" : `${Math.round(value)}<small>${unit}</small>`;
+  el.parentElement.classList.toggle("flag", Boolean(flag));
+};
+setVital("vHr", S.bpm, "bpm", S.bpm < 50 || S.bpm > 100);
+setVital("vPr", S.prMs, "ms", S.prMs > 220);
+if (S.prMs == null && D.beat) $("hPr").textContent = "no clear P wave";
+setVital("vQrs", S.qrsMs, "ms", S.qrsMs >= 120);
+setVital("vAxis", S.qrsAxisDeg, "°", S.qrsAxisDeg < -30 || S.qrsAxisDeg > 90);
+setVital("vAngle", S.qrsTAngleDeg, "°", S.qrsTAngleDeg > 105);
+
+// ---------------------------------------------------------------------------
+// 3D scene
+// ---------------------------------------------------------------------------
+const canvas = $("scene");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(2.2, 1.2, 5.2);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+camera.position.set(2.0, 1.1, 4.8);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+controls.minDistance = 2.2;
+controls.maxDistance = 9;
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(3, 4, 5);
 scene.add(sun);
 
-// Stand-in heart: a tilted ellipsoid, apex pointing down-left like the real one.
-const heart = new THREE.Mesh(
-  new THREE.SphereGeometry(0.75, 48, 32),
-  new THREE.MeshStandardMaterial({ color: 0xd85a30, transparent: true, opacity: 0.18, roughness: 0.6 })
-);
+const vecMag = i => Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i]);
+let maxMag = 0;
+for (let i = 0; i < N; i++) maxMag = Math.max(maxMag, vecMag(i));
+const SCALE = 2 / maxMag;
+const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z); // Frank (left, feet, back) -> screen
+const vecAt = i => toScene(D.vector[0][i], D.vector[1][i], D.vector[2][i]).multiplyScalar(SCALE);
+
+// Stand-in heart: a soft glowing ellipsoid, apex pointing down-left.
+const heartMat = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.13, roughness: 0.4, depthWrite: false,
+  emissiveIntensity: 0.35 });
+const heart = new THREE.Mesh(new THREE.SphereGeometry(0.75, 64, 40), heartMat);
 heart.scale.set(0.85, 1.15, 0.8);
 heart.rotation.z = Math.PI / 5;
 scene.add(heart);
 
-function makeLabel(text, color = "#888780") {
+function makeLabel(text) {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 64;
-  const g = c.getContext("2d");
-  g.font = "600 34px system-ui, sans-serif";
-  g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillStyle = color; g.fillText(text, 128, 32);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  const tex = new THREE.CanvasTexture(c);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
   sprite.scale.set(0.8, 0.2, 1);
+  sprite.userData.draw = () => {
+    const g = c.getContext("2d");
+    g.clearRect(0, 0, 256, 64);
+    g.font = "600 32px Inter, system-ui, sans-serif";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = UI.token("--muted");
+    g.fillText(text, 128, 32);
+    tex.needsUpdate = true;
+  };
+  sprite.userData.draw();
   return sprite;
 }
-
-// Body orientation hints
-[["Patient's left", toScene(3.3, -0.35, 0)], ["Feet", toScene(0.45, 3.0, 0)]].forEach(([t, p]) => {
-  const s = makeLabel(t, "#b4b2a9"); s.position.copy(p); scene.add(s);
+const labels = [];
+[["Patient's left", toScene(3.0, -0.35, 0)], ["Feet", toScene(0.45, 2.8, 0)]].forEach(([t, p]) => {
+  const s = makeLabel(t); s.position.copy(p); scene.add(s); labels.push(s);
 });
 
-// Lead "cameras": one line per lead direction, coloured by what that lead currently sees.
+// Lead "cameras"
 const leadGroup = new THREE.Group();
-const leadLines = D.leadDirections.map((d, k) => {
+const leadMats = D.leadDirections.map((d, k) => {
   const end = toScene(...d).multiplyScalar(2.3);
-  const mat = new THREE.LineBasicMaterial({ color: 0x888780, transparent: true, opacity: 0.6 });
-  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), end]), mat);
+  const mat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5 });
+  leadGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), end]), mat));
   const label = makeLabel(D.leadNames[k]);
   label.position.copy(end.clone().multiplyScalar(1.1));
-  leadGroup.add(line, label);
+  leadGroup.add(label); labels.push(label);
   return mat;
 });
 scene.add(leadGroup);
-document.getElementById("showLeads").addEventListener("change", e => { leadGroup.visible = e.target.checked; });
+$("showLeads").addEventListener("change", e => { leadGroup.visible = e.target.checked; });
 
-// Faint ghost of the whole first beat, so the loop shape is always visible.
-const beatStart = Math.max(0, D.phase.indexOf(1) - Math.round(D.fs * 0.03));
-const beatEnd = Math.min(N, beatStart + Math.round(D.fs * 0.85));
-const ghostPts = [], ghostCols = [];
-for (let i = beatStart; i < beatEnd; i++) {
-  ghostPts.push(vecAt(i));
-  ghostCols.push(new THREE.Color(PHASE_COLORS[D.phase[i]]));
+// Averaged-beat loop as tubes, one per P / QRS / T stretch. A second, thicker copy of each
+// stretch lights up when the AI says that part of the beat drove its reading.
+const B = D.beat;
+const beatScale = i => toScene(B.vector[0][i], B.vector[1][i], B.vector[2][i]).multiplyScalar(SCALE);
+const loopParts = { 1: [], 2: [], 3: [] };
+if (B) {
+  const L = B.phase.length;
+  let start = 0;
+  for (let i = 1; i <= L; i++) {
+    if (i < L && B.phase[i] === B.phase[start]) continue;
+    const ph = B.phase[start];
+    if (ph > 0 && i - start > 2) {
+      const pts = [];
+      for (let k = start; k <= Math.min(i, L - 1); k++) pts.push(beatScale(k));
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const thin = new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 3, 0.011, 6),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.32 }));
+      const glow = new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 3, 0.038, 10),
+        new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.9, roughness: 0.3, emissiveIntensity: 0.9 }));
+      glow.visible = false;
+      scene.add(thin, glow);
+      loopParts[ph].push({ thin, glow });
+    }
+    start = i;
+  }
 }
-const ghostGeo = new THREE.BufferGeometry().setFromPoints(ghostPts);
-ghostGeo.setAttribute("color", new THREE.Float32BufferAttribute(ghostCols.flatMap(c => [c.r, c.g, c.b]), 3));
-scene.add(new THREE.Line(ghostGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.25 })));
+let highlightPhase = 0;
+function setHighlight(ph) {
+  highlightPhase = ph;
+  Object.entries(loopParts).forEach(([p, parts]) => parts.forEach(({ glow }) => { glow.visible = Number(p) === ph; }));
+}
 
-// Live trail: the last ~0.4 s of the arrow tip.
+// Live trail + arrow
 const TRAIL = Math.round(D.fs * 0.4);
 const trailGeo = new THREE.BufferGeometry();
 trailGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(TRAIL * 3), 3));
 trailGeo.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(TRAIL * 3), 3));
 scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ vertexColors: true })));
-
-const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.01, 0xd85a30);
+const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.01, 0xffffff);
 scene.add(arrow);
+const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 14), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85 }));
+scene.add(tipGlow);
 
-function update3D(i) {
-  const v = vecAt(i);
-  const len = v.length();
-  if (len > 0.02) {
-    arrow.visible = true;
+let PHASE_COLORS = [], LEAD_COLORS = {};
+function applyTheme() {
+  PHASE_COLORS = PHASE_TOKENS.map(color);
+  LEAD_COLORS = { pos: color("--pos"), neg: color("--neg"), base: color("--base") };
+  heartMat.color = color("--heart");
+  heartMat.emissive = color("--heart");
+  Object.entries(loopParts).forEach(([p, parts]) => parts.forEach(({ thin, glow }) => {
+    thin.material.color = PHASE_COLORS[p];
+    glow.material.color = PHASE_COLORS[p];
+    glow.material.emissive = PHASE_COLORS[p];
+  }));
+  labels.forEach(s => s.userData.draw());
+}
+applyTheme();
+UI.onThemeChange(() => { applyTheme(); drawStrips(lastI, true); });
+
+function update3D(i, now) {
+  const v = vecAt(i), len = v.length(), c = PHASE_COLORS[D.phase[i]];
+  arrow.visible = tipGlow.visible = len > 0.02;
+  if (arrow.visible) {
     arrow.setDirection(v.clone().normalize());
     arrow.setLength(len, Math.min(0.25, len * 0.35), Math.min(0.14, len * 0.2));
-    arrow.setColor(PHASE_COLORS[D.phase[i]]);
-  } else {
-    arrow.visible = false;
+    arrow.setColor(c);
+    tipGlow.position.copy(v);
+    tipGlow.material.color = c;
   }
   const pos = trailGeo.attributes.position, col = trailGeo.attributes.color;
   for (let k = 0; k < TRAIL; k++) {
-    const j = Math.max(0, i - TRAIL + 1 + k);
-    const p = vecAt(j), c = new THREE.Color(PHASE_COLORS[D.phase[j]]);
+    const j = Math.max(0, i - TRAIL + 1 + k), p = vecAt(j), cj = PHASE_COLORS[D.phase[j]], fade = 0.25 + 0.75 * (k / TRAIL);
     pos.setXYZ(k, p.x, p.y, p.z);
-    col.setXYZ(k, c.r, c.g, c.b);
+    col.setXYZ(k, cj.r * fade, cj.g * fade, cj.b * fade);
   }
   pos.needsUpdate = col.needsUpdate = true;
-
   D.leadNames.forEach((_, k) => {
     const val = D.leads[k][i];
-    leadLines[k].color.setHex(val > 0.08 ? 0x1d9e75 : val < -0.08 ? 0xd85a30 : 0x888780);
-    leadLines[k].opacity = Math.abs(val) > 0.08 ? 1 : 0.5;
+    leadMats[k].color = val > 0.08 ? LEAD_COLORS.pos : val < -0.08 ? LEAD_COLORS.neg : LEAD_COLORS.base;
+    leadMats[k].opacity = Math.abs(val) > 0.08 ? 1 : 0.4;
   });
+  // The highlighted part of the loop breathes gently so it reads as "this one".
+  if (highlightPhase) {
+    const k = 0.75 + 0.25 * Math.sin(now / 320);
+    loopParts[highlightPhase].forEach(({ glow }) => { glow.material.opacity = k; });
+  }
+  // Heart glows a little with every QRS.
+  heartMat.opacity = 0.11 + (D.phase[i] === 2 ? 0.07 : 0);
 }
 
-// --- 12-lead strips (monitor-style sweep) ---
-const strips = document.getElementById("strips");
+// ---------------------------------------------------------------------------
+// 12-lead monitor sweep: new trace writes over the old one, with a gap, like a bedside monitor.
+// ---------------------------------------------------------------------------
+const strips = $("strips");
 const sg = strips.getContext("2d");
-const WINDOW = 2.0; // seconds per sweep
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const WINDOW = 2.5;
+const maxLead = Math.max(...D.leads.flat().map(Math.abs));
+let lastI = 0;
 
-function drawStrips(i) {
+function drawStrips(i, force) {
   const w = strips.clientWidth, h = strips.clientHeight, dpr = window.devicePixelRatio;
-  if (strips.width !== w * dpr) { strips.width = w * dpr; strips.height = h * dpr; }
+  if (strips.width !== Math.round(w * dpr) || force) { strips.width = Math.round(w * dpr); strips.height = Math.round(h * dpr); }
   sg.setTransform(dpr, 0, 0, dpr, 0, 0);
   sg.clearRect(0, 0, w, h);
-  const cols = 2, rows = 6, cw = w / cols, rh = h / rows;
-  const winLen = Math.round(WINDOW * D.fs);
-  const start = Math.floor(i / winLen) * winLen;
+  const narrow = w < 560, cols = narrow ? 1 : 2, rows = 12 / cols, cw = w / cols, rh = h / rows;
+  const winLen = Math.round(WINDOW * D.fs), start = Math.floor(i / winLen) * winLen, gap = Math.round(0.08 * D.fs);
+  const trace = UI.token("--trace"), faint = UI.token("--trace-2"), grid = UI.token("--grid");
   for (let k = 0; k < 12; k++) {
-    const cx = Math.floor(k / rows) * cw, cy = (k % rows) * rh, mid = cy + rh / 2;
-    sg.strokeStyle = css("--grid"); sg.lineWidth = 1;
-    sg.beginPath(); sg.moveTo(cx + 34, mid); sg.lineTo(cx + cw - 6, mid); sg.stroke();
+    const cx = Math.floor(k / rows) * cw, cy = (k % rows) * rh, mid = cy + rh / 2, x0 = cx + 40, plotW = cw - 50;
+    // grid dots
+    sg.fillStyle = grid;
+    for (let gx = x0; gx < x0 + plotW; gx += 14) for (let gy = cy + 6; gy < cy + rh - 2; gy += 14) sg.fillRect(gx, gy, 1.2, 1.2);
     const val = D.leads[k][i];
-    sg.fillStyle = val > 0.08 ? "#1d9e75" : val < -0.08 ? "#d85a30" : css("--muted");
-    sg.font = "600 13px system-ui, sans-serif";
-    sg.fillText(D.leadNames[k], cx + 4, mid + 4);
-    sg.strokeStyle = css("--trace"); sg.lineWidth = 1.4;
-    sg.beginPath();
-    const plotW = cw - 40, yScale = (rh * 0.45) / maxLead;
-    for (let j = start; j <= i; j++) {
-      const x = cx + 34 + ((j - start) / winLen) * plotW;
-      const y = mid - D.leads[k][j] * yScale;
-      j === start ? sg.moveTo(x, y) : sg.lineTo(x, y);
+    sg.fillStyle = val > 0.08 ? UI.token("--pos") : val < -0.08 ? UI.token("--neg") : UI.token("--muted");
+    sg.font = "600 12.5px Inter, system-ui, sans-serif";
+    sg.textBaseline = "middle";
+    sg.fillText(D.leadNames[k], cx + 6, mid);
+    const yScale = (rh * 0.44) / maxLead, xAt = j => x0 + ((j % winLen) / winLen) * plotW;
+    const yAt = j => mid - D.leads[k][j] * yScale;
+    // previous sweep, after the write head + gap
+    if (start >= winLen) {
+      sg.strokeStyle = faint; sg.globalAlpha = 0.35; sg.lineWidth = 1.1; sg.beginPath();
+      for (let q = i - start + gap; q < winLen; q++) {
+        const jj = start - winLen + q;
+        q === i - start + gap ? sg.moveTo(xAt(jj), yAt(jj)) : sg.lineTo(xAt(jj), yAt(jj));
+      }
+      sg.stroke(); sg.globalAlpha = 1;
     }
+    // current sweep
+    sg.strokeStyle = trace; sg.lineWidth = 1.5; sg.lineJoin = "round";
+    if (UI.isDark()) { sg.shadowColor = trace; sg.shadowBlur = 6; }
+    sg.beginPath();
+    for (let j = start; j <= i; j++) j === start ? sg.moveTo(xAt(j), yAt(j)) : sg.lineTo(xAt(j), yAt(j));
     sg.stroke();
+    sg.shadowBlur = 0;
+    // write head
+    sg.fillStyle = trace;
+    sg.beginPath(); sg.arc(xAt(i), yAt(i), 2.4, 0, Math.PI * 2); sg.fill();
   }
 }
 
-// --- Playback ---
-let playing = true, t = 0, last = performance.now();
-const speedSel = document.getElementById("speed");
-document.getElementById("play").addEventListener("click", e => {
-  playing = !playing;
-  e.target.textContent = playing ? "Pause" : "Play";
-});
+// ---------------------------------------------------------------------------
+// AI reading panel
+// ---------------------------------------------------------------------------
+const pct = p => `${Math.round(p * 100)}%`;
+let modelKey = AI ? (AI.models.features ? "features" : Object.keys(AI.models)[0]) : null;
+let focusClass = null;
+
+function renderAI() {
+  const body = $("aiBody");
+  if (!AI || !modelKey) {
+    body.innerHTML = '<p class="ai-empty">AI readings are available for the real PTB-XL recordings. Pick one from the list above.</p>';
+    setHighlight(0);
+    return;
+  }
+  const M = AI.models[modelKey];
+  const classes = Object.keys(M.probs);
+  const hits = classes.filter(c => M.probs[c] >= M.thresholds[c]);
+  if (!focusClass || !classes.includes(focusClass)) {
+    focusClass = (hits.length ? hits : classes).reduce((a, b) => (M.probs[a] >= M.probs[b] ? a : b));
+  }
+  const seg = Object.keys(AI.models).length > 1
+    ? `<div class="seg" role="group" aria-label="Model">${Object.entries(AI.models).map(([k, m]) =>
+        `<button type="button" data-model="${k}" aria-pressed="${k === modelKey}">${m.name}</button>`).join("")}</div>` : "";
+  const rows = classes.map(c => `
+    <div class="prob ${M.probs[c] >= M.thresholds[c] ? "hit" : ""}" data-class="${c}" role="button" tabindex="0"
+         aria-current="${c === focusClass}" aria-label="${AI.classNames[c]}: ${pct(M.probs[c])}">
+      <div class="name"><span>${AI.classNames[c]}</span>${AI.truth.includes(c) ? '<span class="truth">cardiologist</span>' : ""}</div>
+      <div class="pct">${pct(M.probs[c])}</div>
+      <div class="bar"><div class="fill" data-w="${(M.probs[c] * 100).toFixed(1)}"></div>
+        <div class="thr" style="left:calc(${(M.thresholds[c] * 100).toFixed(1)}% - 1px)" title="Flag line, set on validation data"></div></div>
+    </div>`).join("");
+
+  // What drove the focus class: how much its probability drops when each part of the beat is made typical.
+  const dr = M.drivers[focusClass];
+  const groups = Object.entries(dr.groups);
+  const top = Math.max(0.05, ...groups.map(([, v]) => Math.abs(v)));
+  const driverRows = groups.map(([g, v]) => {
+    const ph = M.groupPhase[g] || 0, col = `var(${PHASE_TOKENS[ph]})`;
+    return `<div class="driver"><span>${g}</span><div class="track"><i style="background:${col};width:0" data-w="${(Math.max(0, v) / top * 100).toFixed(1)}"></i></div>
+      <span class="num">${v >= 0 ? "−" : "+"}${Math.abs(Math.round(v * 100))}</span></div>`;
+  }).join("");
+  const feats = (dr.features || []).map(f => `<li><span>${f.label}</span><b>${f.value}</b></li>`).join("");
+  const best = groups.filter(([g]) => M.groupPhase[g]).sort((a, b) => b[1] - a[1])[0];
+  const hlPhase = best && best[1] > 0.02 ? M.groupPhase[best[0]] : 0;
+  setHighlight(hlPhase);
+
+  body.innerHTML = `${seg}
+    <div class="model-meta">${M.testAuc ? `Test macro AUC ${M.testAuc.toFixed(3)} on 2,158 unseen ECGs. ` : ""}Orange bars cross the flag line.</div>
+    <div class="probs">${rows}</div>
+    <p class="focus-title">What drove <b>${AI.classNames[focusClass]}</b> (${pct(M.probs[focusClass])})</p>
+    <div class="note">Points the probability drops when that part of the beat is made typical:</div>
+    <div class="drivers">${driverRows}</div>
+    ${feats ? `<ul class="feature-list">${feats}</ul>` : ""}
+    <div class="hl">${hlPhase ? `Lit up in 3D: the <b style="color:var(${PHASE_TOKENS[hlPhase]})">${PHASE_TEXT[hlPhase]}</b> part of the averaged loop.` : "No single part of the beat stands out."}</div>`;
+
+  requestAnimationFrame(() => body.querySelectorAll("[data-w]").forEach(el => { el.style.width = `${el.dataset.w}%`; }));
+  body.querySelectorAll("[data-model]").forEach(b => b.addEventListener("click", () => { modelKey = b.dataset.model; renderAI(); }));
+  body.querySelectorAll("[data-class]").forEach(el => {
+    const pick = () => { focusClass = el.dataset.class; renderAI(); };
+    el.addEventListener("click", pick);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+  });
+}
+renderAI();
+
+// ---------------------------------------------------------------------------
+// Playback
+// ---------------------------------------------------------------------------
+let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches, t = 0, last = performance.now(), prevPhase = 0;
+const playBtn = $("play"), speedSel = $("speed");
+const syncPlay = () => { playBtn.textContent = playing ? "Pause" : "Play"; $("liveChip").style.visibility = playing ? "visible" : "hidden"; };
+syncPlay();
+playBtn.addEventListener("click", () => { playing = !playing; syncPlay(); });
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (canvas.width !== Math.round(w * renderer.getPixelRatio())) {
+  if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -250,17 +481,22 @@ function resize() {
 }
 
 function frame(now) {
-  const dt = (now - last) / 1000; last = now;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (playing) t = (t + dt * parseFloat(speedSel.value)) % (N / D.fs);
   const i = Math.min(N - 1, Math.floor(t * D.fs));
+  const ph = D.phase[i];
+  if (ph === 2 && prevPhase !== 2) UI.pulse();
+  if (ph !== prevPhase) { $("vPhase").textContent = PHASE_TEXT[ph]; $("hPhase").textContent = PHASE_HINT[ph]; $("vPhase").style.color = `var(${PHASE_TOKENS[ph]})`; }
+  prevPhase = ph;
   resize();
-  update3D(i);
-  drawStrips(i);
-  document.getElementById("phase").textContent = PHASE_TEXT[D.phase[i]] || "";
+  update3D(i, now);
+  if (i !== lastI || !playing) drawStrips(i);
+  lastI = i;
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
+$("vPhase").textContent = PHASE_TEXT[0];
 requestAnimationFrame(frame);
 </script>
 </body>

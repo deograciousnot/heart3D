@@ -6,30 +6,32 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 
 - Works on a **synthetic** normal heart (no download needed)
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
-- **AI classifier** (first version): recognises 5 diagnosis groups from heart-vector measurements, test macro AUC 0.918 on PTB-XL
+- **Two AI models** reading 5 diagnosis groups: a measurement model (test macro AUC 0.920) and a 1D ResNet on the raw signal (0.928), with "what drove it" shown on the 3D loop
 - **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
 ## Quick start
 
+The viewer data is already built, so you only need a local web server:
+
 ```bash
-pip install -r requirements.txt
-python ecg_to_vcg.py                                               # synthetic data
-python ecg_to_vcg.py --wfdb ptbxl/00001_hr --out ecg_data_real.js  # real record
 python -m http.server 8765
 ```
 
-Open http://localhost:8765/viewer.html, or `?data=ecg_data_real.js` for the real ECG.
-Open http://localhost:8765/compare.html for the normal vs abnormal comparison.
+Open http://localhost:8765/viewer.html (pick any recording from the list) or http://localhost:8765/compare.html.
 
-## Training the classifier
+## Rebuilding and training
 
 ```bash
+pip install -r requirements.txt
 python download_ptbxl.py          # all 21,799 PTB-XL records at 100 Hz, about 0.5 GB (resumable)
-python train_features.py          # extract features (~10 min, cached), train, score validation
-python train_features.py --test   # score the test fold too, once the model is final
+python train_features.py          # measurement model: features (~10 min, cached) + training, validation only
+python train_features.py --test   # score the test fold, once the model is final
+python train_cnn.py               # 1D ResNet, ~35 min on a laptop CPU (3 threads)
+python train_cnn.py --test        # score the test fold, once
+python make_demo_data.py          # rebuild all viewer data files with AI readings
 ```
 
-Results are saved to `models/feature_model_results.json`.
+Models and their results are in `models/`. See the [code walkthrough](docs/04-code-walkthrough.md) for details.
 
 ## Notes (read in order)
 

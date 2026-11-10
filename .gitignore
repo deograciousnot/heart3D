@@ -10,3 +10,4 @@ ptbxl/records500/
 ptbxl/*.csv
 *.part
 ptbxl/*.npz
+ptbxl/*.npy
