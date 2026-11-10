@@ -1,0 +1,34 @@
+{
+  "walls": {
+    "anterior": {
+      "name": "Front wall and septum",
+      "val_auc": 0.946874476286241,
+      "threshold": 0.6453153578845778,
+      "train_positives": 2464,
+      "test_auc": 0.9635165541626486,
+      "test_sensitivity": 0.9019607843137255,
+      "test_specificity": 0.9180327868852459,
+      "test_positives": 306
+    },
+    "inferior": {
+      "name": "Bottom wall",
+      "val_auc": 0.9470790081980158,
+      "threshold": 0.6409952058899611,
+      "train_positives": 2630,
+      "test_auc": 0.9674934080421885,
+      "test_sensitivity": 0.8902439024390244,
+      "test_specificity": 0.9054054054054054,
+      "test_positives": 328
+    },
+    "lateral": {
+      "name": "Left side wall",
+      "val_auc": 0.9268650793650793,
+      "threshold": 0.1540390049211532,
+      "train_positives": 950,
+      "test_auc": 0.8873689820572038,
+      "test_sensitivity": 0.811965811965812,
+      "test_specificity": 0.8267898383371824,
+      "test_positives": 117
+    }
+  }
+}

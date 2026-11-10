@@ -128,7 +128,20 @@ def _feature_reading(path100):
                               drop=round(float(p[c] - ps[i, c]), 4)) for i in top if p[c] - ps[i, c] > 0.005],
         }
     out["thresholds"] = {cls: round(float(t), 4) for cls, t in zip(CLASSES, fm["thresholds"])}
+    out["_features"] = dict(zip(fm["names"], x[0].tolist()))  # reused by the MI location model, then dropped
     return out
+
+
+def _location_reading(features):
+    """Which wall an MI is on, from the same measurements. Only meaningful when there is an MI."""
+    with open(os.path.join(MODELS, "mi_location.pkl"), "rb") as f:
+        lm = pickle.load(f)
+    x = np.array([[features[n] for n in lm["names"]]], dtype=np.float32)
+    return {
+        "probs": {w: round(float(m.predict_proba(x)[0, 1]), 4) for w, m in zip(lm["walls"], lm["models"])},
+        "thresholds": {w: round(float(t), 4) for w, t in zip(lm["walls"], lm["thresholds"])},
+        "testAuc": _results("mi_location_results.json", per="walls"),
+    }
 
 
 def _cnn_reading(path100):
@@ -163,13 +176,16 @@ def _cnn_reading(path100):
     }
 
 
-def _results(name):
+def _results(name, per=None):
+    """Test AUC from a saved results file: the macro value, or {item: auc} for per='walls'."""
     path = os.path.join(MODELS, name)
     if not os.path.exists(path):
         return None
     import json
     with open(path, encoding="utf-8") as f:
         r = json.load(f)
+    if per:
+        return {k: round(v["test_auc"], 3) for k, v in r[per].items() if "test_auc" in v}
     return r.get("macro_test_auc")
 
 
@@ -186,9 +202,12 @@ def ai_reading(ecg_id):
         "models": {},
     }
     if os.path.exists(os.path.join(MODELS, "feature_model.pkl")):
+        fr = _feature_reading(path100)
+        features = fr.pop("_features")
         reading["models"]["features"] = {"name": "Measurement model", "testAuc": _results("feature_model_results.json"),
-                                         "groupPhase": {g: v["phase"] for g, v in GROUPS.items()},
-                                         **_feature_reading(path100)}
+                                         "groupPhase": {g: v["phase"] for g, v in GROUPS.items()}, **fr}
+        if os.path.exists(os.path.join(MODELS, "mi_location.pkl")):
+            reading["miLocation"] = _location_reading(features)
     if os.path.exists(os.path.join(MODELS, "cnn.pt")):
         reading["models"]["cnn"] = {"name": "Neural network", "testAuc": _results("cnn_results.json"),
                                     "groupPhase": {"P wave and PR": 1, "QRS": 2, "ST-T": 3},

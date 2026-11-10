@@ -7,6 +7,7 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 - Works on a **synthetic** normal heart (no download needed)
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
 - **Two AI models** reading 5 diagnosis groups: a measurement model (test macro AUC 0.920) and a 1D ResNet on the raw signal (0.928), with "what drove it" shown on the 3D loop
+- **Anatomical 3D heart** that glows where the electrical wave is heading, and shades the likely heart attack wall when an MI is flagged
 - **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
 ## Quick start

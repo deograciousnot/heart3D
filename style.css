@@ -247,6 +247,7 @@ input[type="range"] { accent-color: var(--accent); }
   transition: width 1s cubic-bezier(.2, .8, .2, 1);
 }
 .prob.hit .fill { background: linear-gradient(90deg, color-mix(in srgb, var(--qrs) 65%, transparent), var(--qrs)); box-shadow: 0 0 14px color-mix(in srgb, var(--qrs) 45%, transparent); }
+.prob.site .fill { background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 60%, transparent), var(--warn)); box-shadow: 0 0 14px color-mix(in srgb, var(--warn) 45%, transparent); }
 .prob .thr { position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 2px; background: var(--text); opacity: .55; }
 .truth { font-size: 11px; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); border-radius: 6px; padding: 0 5px; }
 

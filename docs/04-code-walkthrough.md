@@ -6,10 +6,12 @@ heart3D/
 ├── viewer.html          # live viewer: 3D vector, vitals, AI reading, 12-lead monitor sweep
 ├── compare.html         # normal vs abnormal: averaged beats side by side
 ├── style.css, ui.js     # shared look (clinical glass, dark + light theme) and page helpers
+├── heart_model.js       # schematic anatomical heart for both 3D views: beat glow + MI wall shading
 ├── download_ptbxl.py    # downloads the full PTB-XL dataset (resumable)
 ├── ptbxl_data.py        # PTB-XL labels (5 superclasses) and train / validation / test splits
 ├── train_features.py    # model 1: 81 median-beat measurements + gradient-boosted trees
 ├── train_cnn.py         # model 2: 1D ResNet on the raw 12-lead signal
+├── train_location.py    # MI location: which wall of the left ventricle (front, bottom, left side)
 ├── predict.py           # runs both models on one ECG and explains the answer (for the viewer)
 ├── make_demo_data.py    # rebuilds every viewer data file with AI readings + data/records.js
 ├── models/              # trained models and their results
@@ -58,6 +60,11 @@ measurements) and, with `--ai`, an `ai` object with both models' reading. `--lab
   "Right now" follows playback.
 - **3D**: arrow = current heart vector, coloured by phase (P blue, QRS coral, T teal); trail = last 0.4 s;
   thin loop = the averaged beat; lead lines turn green / orange when that lead is positive / negative.
+- **Heart** (`heart_model.js`): ventricles, atria and great vessels as a translucent hologram, oriented like a real
+  heart (apex down, left and forward). The surface the heart vector points at glows in the phase colour: atria during
+  P, ventricles during QRS and T. This shows where the wave is heading, not a measured activation map.
+- **Likely heart attack site**: when a model flags MI, the MI location model's wall(s) are shaded amber on the left
+  ventricle and listed in the AI panel. "Heart" and "Glow" toggles switch these off.
 - **AI reading**: both models' probabilities for the five classes, the flag line (threshold set on validation data),
   and "what drove it" for the selected class. The part of the beat that drove it most glows on the 3D loop.
 - **12 leads** in a 2.5 s bedside-monitor sweep, in sync with the 3D view.
@@ -73,6 +80,8 @@ measurements) and, with `--ai`, an `ai` object with both models' reading. `--lab
   speed: bunched dots = slow conduction (bundle branch blocks).
 - **12 leads** of the averaged beat, normal and abnormal overlaid, with a time cursor.
 - **AI reading** of the measurement model for both records (both are training ECGs, as the page says).
+- The same heart model sits behind the loops (no beat glow); for the two MI examples the wall named in the
+  cardiologist's diagnosis is shaded amber.
 
 | Record | Condition | What shows up |
 |---|---|---|
@@ -113,6 +122,12 @@ a convolution stem, four residual stages (32-128 channels), average + max poolin
 
 Validation macro AUC: 0.922 vs 0.933. Published 1D CNNs on the same split reach roughly 0.93 (Strodthoff et al., 2021). The network wins on every class except hypertrophy; the biggest gain is conduction disturbance. The measurement model's advantage is that its reasons are named measurements ("PR interval 260 ms"). On the five unseen demo ECGs both models flag the cardiologist's class every time; for the AV block and the hypertrophy ECG they also flag ST/T change.
 
+**`train_location.py` (MI location).** For ECGs with an MI code, which wall is it on? PTB-XL's MI codes are grouped
+into three walls: front and septum (AMI, ASMI, ALMI, INJAS, INJAL), bottom and back (IMI, ILMI, IPLMI, IPMI, PMI,
+INJIN, INJIL) and left side (LMI, ALMI, ILMI, IPLMI, INJAL, INJLA, INJIL). Same 81 measurements, gradient-boosted
+trees, multi-label, trained on the 4,379 training ECGs that have an MI. Test AUC: front 0.964,
+bottom 0.967, left side 0.887 (550 test MIs). The viewer only asks it when a model flags MI.
+
 **`predict.py`** runs both on one ECG (always its 100 Hz version, as in training) and explains the answer by
 occlusion: how much each class's probability drops when one part of the beat is made typical (measurement model:
 that group of features reset to the training median; network: that part of every beat flattened to baseline).
@@ -133,6 +148,7 @@ python train_features.py          # measurement model: features (~10 min, cached
 python train_features.py --test   # score the test fold, once the model is final
 python train_cnn.py               # neural network, ~35 min on a laptop CPU
 python train_cnn.py --test        # score the test fold, once
+python train_location.py --test   # MI location model (needs the feature cache), ~1 min
 python make_demo_data.py          # all viewer data files with AI readings
 ```
 
@@ -146,6 +162,6 @@ A local server is needed because browsers block ES modules on `file://` pages. S
 - Frontal axis is unreliable when limb-lead voltage is low (records 00001 and 00903).
 - Each comparison condition is one patient, so some differences are between-person variation, not the disease.
 - Kors is fitted to average adults; per person it's an estimate.
-- The heart is a stand-in ellipsoid.
+- The heart is a schematic shape, not this patient's anatomy, and its walls are approximate regions.
 - The models are trained and tested on one dataset (PTB-XL, German hospitals, 1989-1996 devices); performance on
   other populations and machines is unknown.

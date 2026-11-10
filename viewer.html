@@ -92,6 +92,8 @@
             <option value="1">1× real time</option>
           </select>
           <label class="toggle"><input type="checkbox" id="showLeads" checked> Leads</label>
+          <label class="toggle"><input type="checkbox" id="showHeart" checked> Heart</label>
+          <label class="toggle"><input type="checkbox" id="showGlow" checked> Glow</label>
         </div>
       </div>
     </div>
@@ -120,6 +122,7 @@
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { createHeart } from "./heart_model.js";
 
 const D = window.ECG_DATA;
 const UI = window.HeartUI;
@@ -194,9 +197,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true 
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-camera.position.set(2.0, 1.1, 4.8);
+camera.position.set(2.1, 1.5, 5.3);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
+controls.target.set(0, 0.3, 0);
 controls.minDistance = 2.2;
 controls.maxDistance = 9;
 scene.add(new THREE.AmbientLight(0xffffff, 0.75));
@@ -211,13 +215,11 @@ const SCALE = 2 / maxMag;
 const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z); // Frank (left, feet, back) -> screen
 const vecAt = i => toScene(D.vector[0][i], D.vector[1][i], D.vector[2][i]).multiplyScalar(SCALE);
 
-// Stand-in heart: a soft glowing ellipsoid, apex pointing down-left.
-const heartMat = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.13, roughness: 0.4, depthWrite: false,
-  emissiveIntensity: 0.35 });
-const heart = new THREE.Mesh(new THREE.SphereGeometry(0.75, 64, 40), heartMat);
-heart.scale.set(0.85, 1.15, 0.8);
-heart.rotation.z = Math.PI / 5;
-scene.add(heart);
+// Schematic anatomical heart (heart_model.js): glows where the wave is heading, can shade an MI site.
+const heart = createHeart(THREE);
+scene.add(heart.group);
+$("showHeart").addEventListener("change", e => { heart.group.visible = e.target.checked; });
+$("showGlow").addEventListener("change", e => heart.setGlow(e.target.checked));
 
 function makeLabel(text) {
   const c = document.createElement("canvas");
@@ -303,8 +305,7 @@ let PHASE_COLORS = [], LEAD_COLORS = {};
 function applyTheme() {
   PHASE_COLORS = PHASE_TOKENS.map(color);
   LEAD_COLORS = { pos: color("--pos"), neg: color("--neg"), base: color("--base") };
-  heartMat.color = color("--heart");
-  heartMat.emissive = color("--heart");
+  heart.setTheme({ base: color("--heart"), rim: color("--accent-2"), scar: color("--warn"), dark: UI.isDark() });
   Object.entries(loopParts).forEach(([p, parts]) => parts.forEach(({ thin, glow }) => {
     thin.material.color = PHASE_COLORS[p];
     glow.material.color = PHASE_COLORS[p];
@@ -342,8 +343,7 @@ function update3D(i, now) {
     const k = 0.75 + 0.25 * Math.sin(now / 320);
     loopParts[highlightPhase].forEach(({ glow }) => { glow.material.opacity = k; });
   }
-  // Heart glows a little with every QRS.
-  heartMat.opacity = 0.11 + (D.phase[i] === 2 ? 0.07 : 0);
+  heart.update(v, len / 2, D.phase[i], PHASE_COLORS[D.phase[i]], now);
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +443,29 @@ function renderAI() {
   const hlPhase = best && best[1] > 0.02 ? M.groupPhase[best[0]] : 0;
   setHighlight(hlPhase);
 
+  // Likely heart attack site: only asked when a model flags MI ("which wall?" means nothing otherwise).
+  const WALL_NAMES = { anterior: "Front wall and septum", inferior: "Bottom wall", lateral: "Left side wall" };
+  const loc = AI.miLocation;
+  const miFlagged = Object.values(AI.models).some(m => m.probs.MI >= m.thresholds.MI);
+  let siteHtml = "";
+  if (loc && miFlagged) {
+    const walls = Object.keys(loc.probs).filter(w => loc.probs[w] >= loc.thresholds[w]);
+    heart.setScar(walls);
+    const rowsSite = Object.keys(loc.probs).map(w => `
+      <div class="prob ${loc.probs[w] >= loc.thresholds[w] ? "hit site" : ""}" style="cursor:default">
+        <div class="name"><span>${WALL_NAMES[w]}</span></div><div class="pct">${pct(loc.probs[w])}</div>
+        <div class="bar"><div class="fill" data-w="${(loc.probs[w] * 100).toFixed(1)}"></div>
+          <div class="thr" style="left:calc(${(loc.thresholds[w] * 100).toFixed(1)}% - 1px)"></div></div>
+      </div>`).join("");
+    const aucs = loc.testAuc ? Object.entries(loc.testAuc).map(([w, a]) => `${WALL_NAMES[w].toLowerCase()} ${a.toFixed(2)}`).join(", ") : "";
+    siteHtml = `<p class="focus-title">Likely heart attack site</p>
+      <div class="probs">${rowsSite}</div>
+      <div class="hl">${walls.length ? `Shaded amber on the 3D heart: <b style="color:var(--warn)">${walls.map(w => WALL_NAMES[w].toLowerCase()).join(" and ")}</b>.` : "No wall stands out."}
+        Location model${aucs ? `, test AUC ${aucs}` : ""}.</div>`;
+  } else {
+    heart.setScar([]);
+  }
+
   body.innerHTML = `${seg}
     <div class="model-meta">${M.testAuc ? `Test macro AUC ${M.testAuc.toFixed(3)} on 2,158 unseen ECGs. ` : ""}Orange bars cross the flag line.</div>
     <div class="probs">${rows}</div>
@@ -450,7 +473,8 @@ function renderAI() {
     <div class="note">Points the probability drops when that part of the beat is made typical:</div>
     <div class="drivers">${driverRows}</div>
     ${feats ? `<ul class="feature-list">${feats}</ul>` : ""}
-    <div class="hl">${hlPhase ? `Lit up in 3D: the <b style="color:var(${PHASE_TOKENS[hlPhase]})">${PHASE_TEXT[hlPhase]}</b> part of the averaged loop.` : "No single part of the beat stands out."}</div>`;
+    <div class="hl">${hlPhase ? `Lit up in 3D: the <b style="color:var(${PHASE_TOKENS[hlPhase]})">${PHASE_TEXT[hlPhase]}</b> part of the averaged loop.` : "No single part of the beat stands out."}</div>
+    ${siteHtml}`;
 
   requestAnimationFrame(() => body.querySelectorAll("[data-w]").forEach(el => { el.style.width = `${el.dataset.w}%`; }));
   body.querySelectorAll("[data-model]").forEach(b => b.addEventListener("click", () => { modelKey = b.dataset.model; renderAI(); }));
