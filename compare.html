@@ -475,9 +475,10 @@ scrub.addEventListener("input", () => {
 });
 
 function frame(now) {
-  const dt = (now - last) / 1000; last = now;
+  // Clamp: a browser's first frame timestamp can be slightly earlier than `last`, giving a negative step.
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
   if (playing) t = (t + dt * parseFloat(speedSel.value)) % (LEN / FS);
-  const i = Math.min(LEN - 1, Math.floor(t * FS));
+  const i = Math.max(0, Math.min(LEN - 1, Math.floor(t * FS)));
   if (playing) scrub.value = i;
 
   normalLoop.dot.position.copy(pointAt(normal.beat, i));

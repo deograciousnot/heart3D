@@ -188,6 +188,7 @@ export function createHeart(THREE, { scale = 1.15 } = {}) {
         phase 0-3, colour of that phase, time in ms. */
     update(v, strength, phase, color, time) {
       uniforms.uTime.value = time / 1000;
+      if (!color || !Number.isFinite(v.x + v.y + v.z)) return; // skip a bad frame rather than throw
       glowColor.copy(color);
       uniforms.uGlow.value.copy(glowColor);
       const len = v.length();

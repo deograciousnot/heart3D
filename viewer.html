@@ -505,9 +505,10 @@ function resize() {
 }
 
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // Clamp: a browser's first frame timestamp can be slightly earlier than `last`, giving a negative step.
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
   if (playing) t = (t + dt * parseFloat(speedSel.value)) % (N / D.fs);
-  const i = Math.min(N - 1, Math.floor(t * D.fs));
+  const i = Math.max(0, Math.min(N - 1, Math.floor(t * D.fs)));
   const ph = D.phase[i];
   if (ph === 2 && prevPhase !== 2) UI.pulse();
   if (ph !== prevPhase) { $("vPhase").textContent = PHASE_TEXT[ph]; $("hPhase").textContent = PHASE_HINT[ph]; $("vPhase").style.color = `var(${PHASE_TOKENS[ph]})`; }
