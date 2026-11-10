@@ -6,6 +6,7 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 
 - Works on a **synthetic** normal heart (no download needed)
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
+- **AI classifier** (first version): recognises 5 diagnosis groups from heart-vector measurements, test macro AUC 0.918 on PTB-XL
 - **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
 ## Quick start
@@ -19,6 +20,16 @@ python -m http.server 8765
 
 Open http://localhost:8765/viewer.html, or `?data=ecg_data_real.js` for the real ECG.
 Open http://localhost:8765/compare.html for the normal vs abnormal comparison.
+
+## Training the classifier
+
+```bash
+python download_ptbxl.py          # all 21,799 PTB-XL records at 100 Hz, about 0.5 GB (resumable)
+python train_features.py          # extract features (~10 min, cached), train, score validation
+python train_features.py --test   # score the test fold too, once the model is final
+```
+
+Results are saved to `models/feature_model_results.json`.
 
 ## Notes (read in order)
 

@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import json
+import os
 
 import numpy as np
 
@@ -264,16 +265,37 @@ def detect_phases(n, fs, beat):
     return label_phases(n, fs, beat["peaks"], beat["onset"] - r, beat["offset"] - r)
 
 
-def load_wfdb(path):
-    import wfdb  # only needed for real data
+def read_record(path):
+    """
+    Read a WFDB record -> (signals (channels, T) in mV, fs, channel names).
 
-    record = wfdb.rdrecord(path)
-    names = [n.upper().replace("AVR", "aVR").replace("AVL", "aVL").replace("AVF", "aVF") for n in record.sig_name]
-    signals = clean_ecg(record.p_signal.T, record.fs)
+    PTB-XL stores every record the same simple way (one .dat file, 16-bit little-endian integers,
+    channels interleaved), so that case is read directly: about 10x faster than the wfdb library,
+    which matters when reading all 21,799 records. Anything else falls back to wfdb.
+    """
+    with open(path + ".hea", encoding="utf-8") as f:
+        lines = [ln.split() for ln in f if ln.strip() and not ln.startswith("#")]
+    n_sig, fs = int(lines[0][1]), float(lines[0][2])
+    specs = lines[1:1 + n_sig]
+    simple = all(s[1] == "16" and s[0] == specs[0][0] and "(" in s[2] for s in specs)
+    if not simple:
+        import wfdb
+        record = wfdb.rdrecord(path)
+        return record.p_signal.T, record.fs, record.sig_name
+    gain = np.array([float(s[2].split("(")[0]) for s in specs])
+    baseline = np.array([float(s[2].split("(")[1].split(")")[0]) for s in specs])
+    raw = np.fromfile(os.path.join(os.path.dirname(path), specs[0][0]), dtype="<i2").reshape(-1, n_sig).T
+    return (raw - baseline[:, None]) / gain[:, None], fs, [s[8] for s in specs]
+
+
+def load_wfdb(path):
+    raw, fs, sig_names = read_record(path)
+    names = [n.upper().replace("AVR", "aVR").replace("AVL", "aVL").replace("AVF", "aVF") for n in sig_names]
+    signals = clean_ecg(raw, fs)
     by_name = {n: signals[i] for i, n in enumerate(names)}
     leads = np.vstack([by_name[n] for n in LEAD_NAMES])
-    t = np.arange(signals.shape[1]) / record.fs
-    return t, leads, by_name, record.fs
+    t = np.arange(signals.shape[1]) / fs
+    return t, leads, by_name, fs
 
 
 def main():

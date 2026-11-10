@@ -1,0 +1,56 @@
+{
+  "model": "HistGradientBoosting on heart-vector + per-lead median-beat features",
+  "features": 78,
+  "train": 17084,
+  "val": 2146,
+  "test": 2158,
+  "classes": {
+    "NORM": {
+      "name": "Normal",
+      "val_auc": 0.9436568328783502,
+      "threshold": 0.4109340001155006,
+      "test_auc": 0.9361861685718879,
+      "test_sensitivity": 0.9273104880581516,
+      "test_specificity": 0.7958158995815899,
+      "test_positives": 963
+    },
+    "MI": {
+      "name": "Heart attack (MI)",
+      "val_auc": 0.9273914948572483,
+      "threshold": 0.29400181216777865,
+      "test_auc": 0.9282078245137947,
+      "test_sensitivity": 0.8745454545454545,
+      "test_specificity": 0.8283582089552238,
+      "test_positives": 550
+    },
+    "STTC": {
+      "name": "ST/T change",
+      "val_auc": 0.9280209386822489,
+      "threshold": 0.38874342474463247,
+      "test_auc": 0.9307707910988336,
+      "test_sensitivity": 0.8541266794625719,
+      "test_specificity": 0.8607208307880269,
+      "test_positives": 521
+    },
+    "CD": {
+      "name": "Conduction disturbance",
+      "val_auc": 0.8947206773978427,
+      "threshold": 0.44874795526997996,
+      "test_auc": 0.8869633360506192,
+      "test_sensitivity": 0.6895161290322581,
+      "test_specificity": 0.9157641395908543,
+      "test_positives": 496
+    },
+    "HYP": {
+      "name": "Hypertrophy",
+      "val_auc": 0.9082920064215663,
+      "threshold": 0.2502920951110111,
+      "test_auc": 0.9061785357683512,
+      "test_sensitivity": 0.7748091603053435,
+      "test_specificity": 0.8612869198312236,
+      "test_positives": 262
+    }
+  },
+  "macro_val_auc": 0.9204163900474512,
+  "macro_test_auc": 0.9176613312006973
+}

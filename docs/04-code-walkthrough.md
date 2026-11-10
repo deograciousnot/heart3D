@@ -5,6 +5,10 @@ heart3D/
 ├── ecg_to_vcg.py        # maths: ECG <-> 3D heart vector, writes data for the viewer
 ├── viewer.html          # three.js 3D viewer + 12-lead monitor strips
 ├── compare.html         # normal vs abnormal: averaged beats side by side
+├── download_ptbxl.py    # downloads the full PTB-XL dataset (resumable)
+├── ptbxl_data.py        # PTB-XL labels (5 superclasses) and train / validation / test splits
+├── train_features.py    # classifier baseline 1: median-beat features + gradient-boosted trees
+├── models/              # saved results (feature_model_results.json)
 ├── ecg_data.js          # generated: synthetic normal heart
 ├── ecg_data_real.js     # generated: real PTB-XL record 00001 (normal)
 ├── data/                # generated: abnormal PTB-XL records (ptbxl_<id>.js)
@@ -27,7 +31,8 @@ heart3D/
 | `qrs_bounds()` | QRS onset / offset from the **spatial velocity** \|dh/dt\|: grows outward from the fastest point while the loop is still moving fast |
 | `analyse_beats()` | Median beat + measurements: QRS duration, QRS / T frontal axis, 3D QRS-T angle, peak amplitude, heart rate |
 | `detect_phases()` | Labels P / QRS / T for the whole recording, using the QRS onset / offset measured on the median beat |
-| `load_wfdb()` | Reads a PhysioNet record, filters it, returns leads by name |
+| `read_record()` | Reads a PhysioNet record directly (16-bit format, as in PTB-XL); about 5x faster than the wfdb library, identical values |
+| `load_wfdb()` | Reads a record, filters it, returns leads by name |
 
 Output is a `.js` file (`window.ECG_DATA = {...}`) so the viewer can load it with a plain `<script>` tag.
 It holds the full recording plus a `beat` object: one averaged heartbeat (vector, 12 leads, phases), the R-peak
@@ -65,6 +70,24 @@ index, and the measurements. `--label` adds a diagnosis name that the viewers sh
 
 Records were picked from PTB-XL's `ptbxl_database.csv`: the only diagnosis, 100% likelihood, sinus rhythm,
 validated by a cardiologist, and no noise / electrode / extra-beat flags.
+
+## train_features.py
+
+- Runs every labelled PTB-XL ECG (21,388) through the viewer pipeline and summarises the median beat in 78 numbers:
+  QRS width, axes, QRS-T angle, initial / terminal / peak QRS vectors, T vector, loop areas, and per lead the
+  QRS max and min, ST level 60 ms after the QRS, and T amplitude. Cached in `ptbxl/features_100hz.npz`.
+- One `HistGradientBoostingClassifier` per class (multi-label), class-weighted for the imbalance.
+- Folds 1-8 train, fold 9 picks each class's threshold, fold 10 is scored only with `--test`.
+
+| Class | Test AUC | Sensitivity | Specificity |
+|---|---|---|---|
+| Normal | 0.936 | 0.93 | 0.80 |
+| ST/T change | 0.931 | 0.85 | 0.86 |
+| MI | 0.928 | 0.87 | 0.83 |
+| Hypertrophy | 0.906 | 0.77 | 0.86 |
+| Conduction disturbance | 0.887 | 0.69 | 0.92 |
+
+Macro AUC: validation 0.920, test 0.918. Conduction disturbance is weakest: the PR interval (AV blocks) isn't measured yet.
 
 ## Running it
 

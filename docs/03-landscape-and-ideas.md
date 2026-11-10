@@ -19,7 +19,7 @@ The original idea: use ECGs + AI to show a **real-time holographic view of the h
 2. ~~Reconstruct the 3D vector (Kors)~~ ✔
 3. ~~Render it in three.js, in real time, synced with the 12 leads~~ ✔
 4. ~~**Compare normal vs abnormal**: load a myocardial infarction (MI) or bundle branch block record next to the normal one; the loop shape changes visibly.~~ ✔ (`compare.html`: anterior MI, inferior MI, LBBB, RBBB)
-5. **AI layer**: train a classifier on PTB-XL's labels (NORM, MI, STTC, CD, HYP superclasses), and highlight the heart region linked to the finding.
+5. **AI layer** (in progress: feature-based baseline done, test macro AUC 0.918; neural network next): train a classifier on PTB-XL's labels (NORM, MI, STTC, CD, HYP superclasses), and highlight the heart region linked to the finding.
 6. **Better heart model**: replace the ellipsoid with a real heart mesh (glTF), orient the loop inside it.
 7. **Live hardware (optional)**: ADS1298 chip (8 channels, enough for 12-lead). **Battery power only, never mains**, and no connection to a wall-powered laptop while attached to a person. Real ECG kit is electrically isolated for safety.
 

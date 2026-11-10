@@ -3,3 +3,10 @@ __pycache__/
 .venv/
 venv/
 .claude/
+
+# Full PTB-XL download (download_ptbxl.py); the 5 example records stay tracked
+ptbxl/records100/
+ptbxl/records500/
+ptbxl/*.csv
+*.part
+ptbxl/*.npz
