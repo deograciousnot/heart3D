@@ -8,6 +8,7 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
 - **Two AI models** reading 5 diagnosis groups: a measurement model (test macro AUC 0.920) and a 1D ResNet on the raw signal (0.928), with "what drove it" shown on the 3D loop
 - **Anatomical 3D heart** that glows where the electrical wave is heading, and shades the likely heart attack wall when an MI is flagged
+- **Live mode**: stream an ECG into the viewer as if from a recording device (`python live_server.py`), with the vitals and both AI models updating as it plays
 - **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
 ## Quick start
@@ -19,6 +20,15 @@ python -m http.server 8765
 ```
 
 Open http://localhost:8765/viewer.html (pick any recording from the list) or http://localhost:8765/compare.html.
+
+Live mode (needs `pip install -r requirements.txt` and the trained models in `models/`):
+
+```bash
+python live_server.py                  # serves the pages and the stream on port 8766
+python live_server.py --record 7079    # replay another PTB-XL ECG
+```
+
+Then open http://localhost:8766/viewer.html?live=1.
 
 ## Rebuilding and training
 

@@ -35,9 +35,12 @@
 </style>
 <script>
   // Which recording to show: viewer.html?data=data/ptbxl_00338.js (defaults to an unseen test ECG).
-  const dataFile = new URLSearchParams(location.search).get("data") || "data/ptbxl_01737.js";
+  // Live mode (?live=1) streams from live_server.py instead of loading a file.
+  const params = new URLSearchParams(location.search);
+  const LIVE = params.has("live");
+  const dataFile = params.get("data") || "data/ptbxl_01737.js";
   document.write('<script src="data/records.js"><\/script>');
-  if (/^(data\/)?[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
+  if (!LIVE && /^(data\/)?[\w.-]+\.js$/.test(dataFile)) document.write(`<script src="${dataFile}"><\/script>`);
 </script>
 </head>
 <body>
@@ -124,14 +127,45 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createHeart } from "./heart_model.js";
 
-const D = window.ECG_DATA;
 const UI = window.HeartUI;
 const $ = id => document.getElementById(id);
+const LIVE_CAP_S = 12; // seconds of live signal kept in the browser
+
+/** Live mode: open the stream and wait for its "meta" message, which says what's coming. */
+function connectLive() {
+  const record = params.get("record");
+  const es = new EventSource(record ? `stream?record=${encodeURIComponent(record)}` : "stream");
+  return new Promise((resolve, reject) => {
+    es.addEventListener("meta", e => resolve({ es, meta: JSON.parse(e.data) }), { once: true });
+    es.addEventListener("error", () => { if (es.readyState === EventSource.CLOSED || !window.__liveStarted) { es.close(); reject(); } }, { once: true });
+  });
+}
+
+let D = window.ECG_DATA, liveStream = null;
+if (LIVE) {
+  try {
+    liveStream = await connectLive();
+    window.__liveStarted = true;
+  } catch {
+    $("title").textContent = "Live mode";
+    $("source").innerHTML = "Live mode needs the local live server. In the project folder run <code>python live_server.py</code>, then open "
+      + '<a href="http://localhost:8766/viewer.html?live=1">http://localhost:8766/viewer.html?live=1</a>.';
+    $("aiBody").innerHTML = '<p class="ai-empty">No live stream. Start <code>python live_server.py</code> (see above).</p>';
+    throw new Error("no live stream");
+  }
+  const m = liveStream.meta;
+  D = { live: true, fs: m.fs, leadNames: m.leadNames, leadDirections: m.leadDirections, label: m.label, source: m.source,
+        record: m.record, classNames: m.classNames, offset: 0, vector: [[], [], []], leads: m.leadNames.map(() => []), phase: [] };
+}
 if (!D) {
   $("aiBody").innerHTML = '<p class="ai-empty">Couldn\'t load the recording. Run <code>python -m http.server 8765</code> in the project folder and open this page from there.</p>';
   throw new Error("no ECG data");
 }
-const N = D.vector[0].length;
+let N = D.vector[0].length;
+// Samples are addressed by absolute index; a live buffer only holds the latest few seconds (offset = index of its first sample).
+const off = () => D.offset || 0;
+const phaseAt = a => D.phase[a - off()] ?? 0;
+const leadAt = (k, a) => D.leads[k][a - off()];
 const PHASE_TEXT = ["Between beats", "P wave", "QRS complex", "T wave"];
 const PHASE_HINT = ["electrically quiet", "atria firing", "ventricles firing", "ventricles resetting"];
 const PHASE_TOKENS = ["--base", "--p", "--qrs", "--t"];
@@ -140,7 +174,7 @@ const color = name => new THREE.Color(UI.token(name));
 // ---------------------------------------------------------------------------
 // Header: title, record picker, chips
 // ---------------------------------------------------------------------------
-const AI = D.ai;
+let AI = D.ai;
 $("title").textContent = D.label || "3D heart vector";
 $("source").textContent = D.source;
 document.title = `${D.label || "Heart vector"} · heart3D`;
@@ -148,20 +182,38 @@ document.title = `${D.label || "Heart vector"} · heart3D`;
 const GROUP_NAMES = { test: "Unseen test ECGs", comparison: "Comparison examples (seen in training)", synthetic: "Synthetic" };
 const records = window.ECG_RECORDS || [];
 const picker = $("record");
+{
+  const og = document.createElement("optgroup");
+  og.label = "Live";
+  const o = new Option("Live stream (needs live_server.py)", "live");
+  o.selected = LIVE;
+  og.appendChild(o);
+  picker.appendChild(og);
+}
 for (const group of ["test", "comparison", "synthetic"]) {
   const og = document.createElement("optgroup");
   og.label = GROUP_NAMES[group];
   records.filter(r => r.group === group).forEach(r => {
     const o = new Option(r.record ? `${r.label} · #${Number(r.record)}` : r.label, r.file);
-    o.selected = r.file === dataFile;
+    o.selected = !LIVE && r.file === dataFile;
     og.appendChild(o);
   });
   if (og.children.length) picker.appendChild(og);
 }
-picker.addEventListener("change", () => { location.search = `?data=${encodeURIComponent(picker.value)}`; });
+picker.addEventListener("change", () => {
+  location.search = picker.value === "live" ? "?live=1" : `?data=${encodeURIComponent(picker.value)}`;
+});
 
+function renderChips(status) {
 const chips = [];
-if (AI) {
+const rec = D.live ? D.record : AI;
+if (D.live) chips.push(`<span class="chip ${status === "live" ? "ok live" : "warn"}"><span class="dot"></span>${status === "live" ? "Streaming" : "Reconnecting…"}</span>`);
+if (D.live && rec) {
+  chips.push(rec.seen === "test"
+    ? '<span class="chip ok"><span class="dot"></span>Unseen test ECG: no model saw it while training</span>'
+    : `<span class="chip warn"><span class="dot"></span>Seen in ${rec.seen}: the models have learned from this ECG</span>`);
+  chips.push(`<span class="chip">Cardiologist: ${rec.truth.map(c => D.classNames[c]).join(", ") || "no diagnostic label"}</span>`);
+} else if (AI) {
   chips.push(AI.seen === "test"
     ? '<span class="chip ok"><span class="dot"></span>Unseen test ECG: no model saw it while training</span>'
     : `<span class="chip warn"><span class="dot"></span>Seen in ${AI.seen}: the models have learned from this ECG</span>`);
@@ -172,22 +224,27 @@ if (AI) {
   chips.push('<span class="chip">No AI reading in this file. Rebuild it with make_demo_data.py</span>');
 }
 $("chips").innerHTML = chips.join("");
+}
+renderChips("live");
 
 // ---------------------------------------------------------------------------
 // Vitals (from the averaged beat)
 // ---------------------------------------------------------------------------
-const S = D.beat?.stats || {};
 const setVital = (id, value, unit, flag) => {
   const el = $(id);
   el.innerHTML = value == null || Number.isNaN(value) ? "–" : `${Math.round(value)}<small>${unit}</small>`;
   el.parentElement.classList.toggle("flag", Boolean(flag));
 };
-setVital("vHr", S.bpm, "bpm", S.bpm < 50 || S.bpm > 100);
-setVital("vPr", S.prMs, "ms", S.prMs > 220);
-if (S.prMs == null && D.beat) $("hPr").textContent = "no clear P wave";
-setVital("vQrs", S.qrsMs, "ms", S.qrsMs >= 120);
-setVital("vAxis", S.qrsAxisDeg, "°", S.qrsAxisDeg < -30 || S.qrsAxisDeg > 90);
-setVital("vAngle", S.qrsTAngleDeg, "°", S.qrsTAngleDeg > 105);
+function renderVitals() {
+  const S = D.beat?.stats || {};
+  setVital("vHr", S.bpm, "bpm", S.bpm < 50 || S.bpm > 100);
+  setVital("vPr", S.prMs, "ms", S.prMs > 220);
+  $("hPr").textContent = S.prMs == null && D.beat ? "no clear P wave" : "atria to ventricles";
+  setVital("vQrs", S.qrsMs, "ms", S.qrsMs >= 120);
+  setVital("vAxis", S.qrsAxisDeg, "°", S.qrsAxisDeg < -30 || S.qrsAxisDeg > 90);
+  setVital("vAngle", S.qrsTAngleDeg, "°", S.qrsTAngleDeg > 105);
+}
+renderVitals();
 
 // ---------------------------------------------------------------------------
 // 3D scene
@@ -208,12 +265,16 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(3, 4, 5);
 scene.add(sun);
 
-const vecMag = i => Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i]);
-let maxMag = 0;
-for (let i = 0; i < N; i++) maxMag = Math.max(maxMag, vecMag(i));
-const SCALE = 2 / maxMag;
+// Biggest heart vector in the data -> 2 scene units. Live: recomputed from the buffer as data arrives.
+let SCALE = 2;
+function rescale() {
+  let maxMag = 0;
+  for (let i = 0; i < D.vector[0].length; i++) maxMag = Math.max(maxMag, Math.hypot(D.vector[0][i], D.vector[1][i], D.vector[2][i]));
+  if (maxMag > 0) SCALE = 2 / maxMag;
+}
+rescale();
 const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z); // Frank (left, feet, back) -> screen
-const vecAt = i => toScene(D.vector[0][i], D.vector[1][i], D.vector[2][i]).multiplyScalar(SCALE);
+const vecAt = a => { const i = a - off(); return toScene(D.vector[0][i] ?? 0, D.vector[1][i] ?? 0, D.vector[2][i] ?? 0).multiplyScalar(SCALE); };
 
 // Schematic anatomical heart (heart_model.js): glows where the wave is heading, can shade an MI site.
 const heart = createHeart(THREE);
@@ -260,10 +321,16 @@ $("showLeads").addEventListener("change", e => { leadGroup.visible = e.target.ch
 
 // Averaged-beat loop as tubes, one per P / QRS / T stretch. A second, thicker copy of each
 // stretch lights up when the AI says that part of the beat drove its reading.
-const B = D.beat;
-const beatScale = i => toScene(B.vector[0][i], B.vector[1][i], B.vector[2][i]).multiplyScalar(SCALE);
-const loopParts = { 1: [], 2: [], 3: [] };
-if (B) {
+let loopParts = { 1: [], 2: [], 3: [] };
+function buildLoop() {
+  Object.values(loopParts).flat().forEach(({ thin, glow }) => {
+    scene.remove(thin, glow);
+    [thin, glow].forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+  });
+  loopParts = { 1: [], 2: [], 3: [] };
+  const B = D.beat;
+  if (!B) return;
+  const beatScale = i => toScene(B.vector[0][i], B.vector[1][i], B.vector[2][i]).multiplyScalar(SCALE);
   const L = B.phase.length;
   let start = 0;
   for (let i = 1; i <= L; i++) {
@@ -284,9 +351,11 @@ if (B) {
     start = i;
   }
 }
+buildLoop();
 let highlightPhase = 0;
 function setHighlight(ph) {
   highlightPhase = ph;
+  if (!loopParts[ph]) highlightPhase = 0;
   Object.entries(loopParts).forEach(([p, parts]) => parts.forEach(({ glow }) => { glow.visible = Number(p) === ph; }));
 }
 
@@ -302,22 +371,25 @@ const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 14), new THREE
 scene.add(tipGlow);
 
 let PHASE_COLORS = [], LEAD_COLORS = {};
-function applyTheme() {
-  PHASE_COLORS = PHASE_TOKENS.map(color);
-  LEAD_COLORS = { pos: color("--pos"), neg: color("--neg"), base: color("--base") };
-  heart.setTheme({ base: color("--heart"), rim: color("--accent-2"), scar: color("--warn"), dark: UI.isDark() });
+function colourLoop() {
   Object.entries(loopParts).forEach(([p, parts]) => parts.forEach(({ thin, glow }) => {
     thin.material.color = PHASE_COLORS[p];
     glow.material.color = PHASE_COLORS[p];
     glow.material.emissive = PHASE_COLORS[p];
   }));
+}
+function applyTheme() {
+  PHASE_COLORS = PHASE_TOKENS.map(color);
+  LEAD_COLORS = { pos: color("--pos"), neg: color("--neg"), base: color("--base") };
+  heart.setTheme({ base: color("--heart"), rim: color("--accent-2"), scar: color("--warn"), dark: UI.isDark() });
+  colourLoop();
   labels.forEach(s => s.userData.draw());
 }
 applyTheme();
 UI.onThemeChange(() => { applyTheme(); drawStrips(lastI, true); });
 
 function update3D(i, now) {
-  const v = vecAt(i), len = v.length(), c = PHASE_COLORS[D.phase[i]];
+  const v = vecAt(i), len = v.length(), c = PHASE_COLORS[phaseAt(i)];
   arrow.visible = tipGlow.visible = len > 0.02;
   if (arrow.visible) {
     arrow.setDirection(v.clone().normalize());
@@ -328,13 +400,13 @@ function update3D(i, now) {
   }
   const pos = trailGeo.attributes.position, col = trailGeo.attributes.color;
   for (let k = 0; k < TRAIL; k++) {
-    const j = Math.max(0, i - TRAIL + 1 + k), p = vecAt(j), cj = PHASE_COLORS[D.phase[j]], fade = 0.25 + 0.75 * (k / TRAIL);
+    const j = Math.max(off(), i - TRAIL + 1 + k), p = vecAt(j), cj = PHASE_COLORS[phaseAt(j)], fade = 0.25 + 0.75 * (k / TRAIL);
     pos.setXYZ(k, p.x, p.y, p.z);
     col.setXYZ(k, cj.r * fade, cj.g * fade, cj.b * fade);
   }
   pos.needsUpdate = col.needsUpdate = true;
   D.leadNames.forEach((_, k) => {
-    const val = D.leads[k][i];
+    const val = leadAt(k, i) ?? 0;
     leadMats[k].color = val > 0.08 ? LEAD_COLORS.pos : val < -0.08 ? LEAD_COLORS.neg : LEAD_COLORS.base;
     leadMats[k].opacity = Math.abs(val) > 0.08 ? 1 : 0.4;
   });
@@ -343,7 +415,7 @@ function update3D(i, now) {
     const k = 0.75 + 0.25 * Math.sin(now / 320);
     loopParts[highlightPhase].forEach(({ glow }) => { glow.material.opacity = k; });
   }
-  heart.update(v, len / 2, D.phase[i], PHASE_COLORS[D.phase[i]], now);
+  heart.update(v, len / 2, phaseAt(i), PHASE_COLORS[phaseAt(i)], now);
 }
 
 // ---------------------------------------------------------------------------
@@ -352,7 +424,13 @@ function update3D(i, now) {
 const strips = $("strips");
 const sg = strips.getContext("2d");
 const WINDOW = 2.5;
-const maxLead = Math.max(...D.leads.flat().map(Math.abs));
+let maxLead = 1;
+function rescaleLeads() {
+  let m = 0;
+  for (const lead of D.leads) for (const v of lead) m = Math.max(m, Math.abs(v));
+  if (m > 0) maxLead = m;
+}
+rescaleLeads();
 let lastI = 0;
 
 function drawStrips(i, force) {
@@ -368,19 +446,22 @@ function drawStrips(i, force) {
     // grid dots
     sg.fillStyle = grid;
     for (let gx = x0; gx < x0 + plotW; gx += 14) for (let gy = cy + 6; gy < cy + rh - 2; gy += 14) sg.fillRect(gx, gy, 1.2, 1.2);
-    const val = D.leads[k][i];
+    const val = leadAt(k, i) ?? 0;
     sg.fillStyle = val > 0.08 ? UI.token("--pos") : val < -0.08 ? UI.token("--neg") : UI.token("--muted");
     sg.font = "600 12.5px Inter, system-ui, sans-serif";
     sg.textBaseline = "middle";
     sg.fillText(D.leadNames[k], cx + 6, mid);
     const yScale = (rh * 0.44) / maxLead, xAt = j => x0 + ((j % winLen) / winLen) * plotW;
-    const yAt = j => mid - D.leads[k][j] * yScale;
+    const yAt = j => mid - (leadAt(k, j) ?? 0) * yScale;
     // previous sweep, after the write head + gap
     if (start >= winLen) {
       sg.strokeStyle = faint; sg.globalAlpha = 0.35; sg.lineWidth = 1.1; sg.beginPath();
+      let first = true;
       for (let q = i - start + gap; q < winLen; q++) {
         const jj = start - winLen + q;
-        q === i - start + gap ? sg.moveTo(xAt(jj), yAt(jj)) : sg.lineTo(xAt(jj), yAt(jj));
+        if (jj < off()) continue; // live: older than the buffer
+        first ? sg.moveTo(xAt(jj), yAt(jj)) : sg.lineTo(xAt(jj), yAt(jj));
+        first = false;
       }
       sg.stroke(); sg.globalAlpha = 1;
     }
@@ -388,7 +469,8 @@ function drawStrips(i, force) {
     sg.strokeStyle = trace; sg.lineWidth = 1.5; sg.lineJoin = "round";
     if (UI.isDark()) { sg.shadowColor = trace; sg.shadowBlur = 6; }
     sg.beginPath();
-    for (let j = start; j <= i; j++) j === start ? sg.moveTo(xAt(j), yAt(j)) : sg.lineTo(xAt(j), yAt(j));
+    const from = Math.max(start, off());
+    for (let j = from; j <= i; j++) j === from ? sg.moveTo(xAt(j), yAt(j)) : sg.lineTo(xAt(j), yAt(j));
     sg.stroke();
     sg.shadowBlur = 0;
     // write head
@@ -401,11 +483,21 @@ function drawStrips(i, force) {
 // AI reading panel
 // ---------------------------------------------------------------------------
 const pct = p => `${Math.round(p * 100)}%`;
-let modelKey = AI ? (AI.models.features ? "features" : Object.keys(AI.models)[0]) : null;
+let modelKey = null;
 let focusClass = null;
 
 function renderAI() {
   const body = $("aiBody");
+  if (AI && AI.models && (!modelKey || !AI.models[modelKey])) modelKey = AI.models.features ? "features" : Object.keys(AI.models)[0];
+  if (D.live && !AI) {
+    body.innerHTML = '<p class="ai-empty">The models read 10 seconds at a time. The first reading arrives about 10 s after the stream starts, then every 5 s.</p>';
+    setHighlight(0);
+    return;
+  }
+  if (AI && AI.error) {
+    body.innerHTML = `<p class="ai-empty">The live AI reading failed: ${AI.error}</p>`;
+    return;
+  }
   if (!AI || !modelKey) {
     body.innerHTML = '<p class="ai-empty">AI readings are available for the real PTB-XL recordings. Pick one from the list above.</p>';
     setHighlight(0);
@@ -490,10 +582,16 @@ renderAI();
 // Playback
 // ---------------------------------------------------------------------------
 let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches, t = 0, last = performance.now(), prevPhase = 0;
+let liveT = 0; // live: the time being shown (s, absolute), a moment behind the newest sample
 const playBtn = $("play"), speedSel = $("speed");
+if (D.live) speedSel.hidden = true;
 const syncPlay = () => { playBtn.textContent = playing ? "Pause" : "Play"; $("liveChip").style.visibility = playing ? "visible" : "hidden"; };
 syncPlay();
-playBtn.addEventListener("click", () => { playing = !playing; syncPlay(); });
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  if (D.live && playing) liveT = Infinity; // resume live at "now", not where it was paused
+  syncPlay();
+});
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -506,10 +604,21 @@ function resize() {
 
 function frame(now) {
   // Clamp: a browser's first frame timestamp can be slightly earlier than `last`, giving a negative step.
-  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
-  if (playing) t = (t + dt * parseFloat(speedSel.value)) % (N / D.fs);
-  const i = Math.max(0, Math.min(N - 1, Math.floor(t * D.fs)));
-  const ph = D.phase[i];
+  const elapsed = Math.max(0, (now - last) / 1000); last = now;
+  const dt = Math.min(0.1, elapsed); // recordings: cap a slow frame's jump; live mode follows the real clock
+  let i;
+  if (D.live) {
+    const newest = off() + D.phase.length - 1;
+    if (playing) liveT += elapsed;
+    // Follow the stream a moment behind the newest sample, never ahead of it, never older than the buffer.
+    const hi = (newest - 0.12 * D.fs) / D.fs, lo = playing ? (newest - 1.0 * D.fs) / D.fs : off() / D.fs;
+    liveT = Math.min(Math.max(liveT, lo), Math.max(lo, hi));
+    i = Math.max(off(), Math.min(newest, Math.floor(liveT * D.fs)));
+  } else {
+    if (playing) t = (t + dt * parseFloat(speedSel.value)) % (N / D.fs);
+    i = Math.max(0, Math.min(N - 1, Math.floor(t * D.fs)));
+  }
+  const ph = phaseAt(i);
   if (ph === 2 && prevPhase !== 2) UI.pulse();
   if (ph !== prevPhase) { $("vPhase").textContent = PHASE_TEXT[ph]; $("hPhase").textContent = PHASE_HINT[ph]; $("vPhase").style.color = `var(${PHASE_TOKENS[ph]})`; }
   prevPhase = ph;
@@ -523,6 +632,51 @@ function frame(now) {
 }
 $("vPhase").textContent = PHASE_TEXT[0];
 requestAnimationFrame(frame);
+// Read-only peek at playback, for debugging in the browser console: heart3d.state()
+window.heart3d = { state: () => ({ shown: lastI, firstInBuffer: off(), samples: D.phase.length, playing, fs: D.fs, live: !!D.live }) };
+
+if (D.live) {
+  const es = liveStream.es;
+  const resetBuffers = start => {
+    D.offset = start;
+    D.vector = [[], [], []];
+    D.leads = D.leadNames.map(() => []);
+    D.phase = [];
+    liveT = start / D.fs;
+  };
+  es.addEventListener("samples", e => {
+    const m = JSON.parse(e.data);
+    if (m.i !== off() + D.phase.length) resetBuffers(m.i); // a gap or a restarted stream
+    for (let c = 0; c < 3; c++) D.vector[c].push(...m.vector[c]);
+    m.leads.forEach((l, k) => D.leads[k].push(...l));
+    D.phase.push(...m.phase);
+    const extra = D.phase.length - LIVE_CAP_S * D.fs;
+    if (extra > 0) {
+      D.vector.forEach(a => a.splice(0, extra));
+      D.leads.forEach(a => a.splice(0, extra));
+      D.phase.splice(0, extra);
+      D.offset += extra;
+    }
+    if (D.phase.length < 2 * D.fs) { rescale(); rescaleLeads(); } // settle the scale early on
+  });
+  es.addEventListener("beat", e => {
+    D.beat = JSON.parse(e.data);
+    rescale();
+    rescaleLeads();
+    renderVitals();
+    buildLoop();
+    colourLoop();
+    renderAI(); // re-applies the highlight to the rebuilt loop
+  });
+  es.addEventListener("ai", e => {
+    AI = JSON.parse(e.data);
+    renderAI();
+  });
+  es.addEventListener("meta", () => { resetBuffers(0); AI = null; renderAI(); }); // the server restarted the replay
+  es.addEventListener("error", () => renderChips("reconnecting"));
+  es.addEventListener("open", () => renderChips("live"));
+  renderAI();
+}
 </script>
 </body>
 </html>

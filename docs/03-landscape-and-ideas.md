@@ -21,7 +21,7 @@ The original idea: use ECGs + AI to show a **real-time holographic view of the h
 4. ~~**Compare normal vs abnormal**: load a myocardial infarction (MI) or bundle branch block record next to the normal one; the loop shape changes visibly.~~ ✔ (`compare.html`: anterior MI, inferior MI, LBBB, RBBB)
 5. ~~**AI layer**~~ ✔ (measurement model 0.920, 1D ResNet 0.928 test macro AUC; shown in the viewer with "what drove it"): train a classifier on PTB-XL's labels (NORM, MI, STTC, CD, HYP superclasses), and highlight the heart region linked to the finding.
 6. ~~**Better heart model**~~ ✔ (schematic anatomical heart built in three.js: ventricles, atria, great vessels; beat glow; likely MI wall shaded from an MI location model, test AUC 0.96 front / 0.97 bottom / 0.89 left side).
-7. **Live hardware (optional)**: ADS1298 chip (8 channels, enough for 12-lead). **Battery power only, never mains**, and no connection to a wall-powered laptop while attached to a person. Real ECG kit is electrically isolated for safety.
+7. **Live hardware (optional)**: ADS1298 chip (8 channels, enough for 12-lead). **Battery power only, never mains**, and no connection to a wall-powered laptop while attached to a person. Real ECG kit is electrically isolated for safety. Stage 1 done: live mode (`live_server.py`) streams a replayed ECG into the viewer with live vitals and AI; a real board only has to replace the replay source. Next: a battery-powered board tested on an ECG patient simulator before any person.
 
 ## Useful links
 

@@ -356,6 +356,17 @@ def load_wfdb(path):
     return t, leads, by_name, fs
 
 
+def beat_json(beat, step=1):
+    """The averaged beat as the viewers read it (every `step`-th sample), R peak at rIndex."""
+    return {
+        "vector": np.round(beat["vector"][:, ::step], 4).tolist(),
+        "leads": np.round(beat["leads"][:, ::step], 4).tolist(),
+        "phase": beat["phase"][::step].tolist(),
+        "rIndex": beat["rIndex"] // step,
+        "stats": {k: (round(v, 3) if v is not None else None) for k, v in beat["stats"].items()},
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--wfdb", help="path to a WFDB record (without extension), e.g. PTB-XL records500/00000/00001_hr")
@@ -401,13 +412,7 @@ def main():
         "phase": phase[::step].tolist(),
         "leadDirections": np.round(LEAD_DIRECTIONS, 4).tolist(),
         # One averaged heartbeat, R peak at index rIndex. Used by compare.html.
-        "beat": {
-            "vector": np.round(beat["vector"][:, ::step], 4).tolist(),
-            "leads": np.round(beat["leads"][:, ::step], 4).tolist(),
-            "phase": beat["phase"][::step].tolist(),
-            "rIndex": beat["rIndex"] // step,
-            "stats": {k: (round(v, 3) if v is not None else None) for k, v in s.items()},
-        },
+        "beat": beat_json(beat, step),
     }
     if args.ai and args.wfdb:
         import re

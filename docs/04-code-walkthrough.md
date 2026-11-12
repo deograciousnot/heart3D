@@ -14,6 +14,7 @@ heart3D/
 ├── train_location.py    # MI location: which wall of the left ventricle (front, bottom, left side)
 ├── predict.py           # runs both models on one ECG and explains the answer (for the viewer)
 ├── make_demo_data.py    # rebuilds every viewer data file with AI readings + data/records.js
+├── live_server.py       # live mode: streams an ECG into the viewer as if from a device, with AI updates
 ├── models/              # trained models and their results
 ├── ecg_data.js          # generated: synthetic normal heart
 ├── ecg_data_real.js     # generated: PTB-XL record 00001 (normal)
@@ -69,6 +70,34 @@ measurements) and, with `--ai`, an `ai` object with both models' reading. `--lab
   and "what drove it" for the selected class. The part of the beat that drove it most glows on the 3D loop.
 - **12 leads** in a 2.5 s bedside-monitor sweep, in sync with the 3D view.
 - Theme: dark "monitor" by default, light for light-mode systems; the sun button switches and remembers.
+
+## live_server.py (live mode)
+
+Stage 1 of the hardware plan: everything a recording device needs, without the device. Run
+`python live_server.py` and open `http://localhost:8766/viewer.html?live=1`; the server serves the pages and a
+Server-Sent Events stream on `/stream` from the same address, using only the Python standard library.
+
+| Step | What | How often |
+|---|---|---|
+| Source | `ReplaySource` plays a PTB-XL record (500 Hz if the file is in `ptbxl/`) in real time, looping | 40 ms chunks |
+| Filter | Causal 0.5-40 Hz band-pass (it can only use the past, like a bedside monitor), then 250 Hz | every chunk |
+| Vector | Kors matrix -> 3D heart vector | every chunk |
+| Labels | P / QRS / T from the last 10 s; samples are sent 0.6 s behind real time so each beat is labelled first | 0.25 s |
+| Beat | Averaged beat and vitals, from the last 10 s filtered the offline (zero-phase) way, so the numbers match the files | 2 s |
+| AI | Both models + MI location on the last 10 s, resampled to 100 Hz, in a background thread on one core | 5 s, after the first 10 s |
+
+Events: `meta` (once: rate, leads, record info), `samples` (absolute index + leads, vector, phase), `beat`, `ai`.
+A real board replaces `ReplaySource` with anything that offers `fs` and `read(n)` returning a (12, n) array in mV
+in `LEAD_NAMES` order (for example OpenBCI through the BrainFlow library).
+
+In the viewer, live mode keeps the last 12 s, follows the stream about 0.15 s behind the newest sample, and
+rebuilds the averaged loop, vitals and AI panel as `beat` and `ai` arrive. Pause freezes the picture; Play jumps
+back to "now". `heart3d.state()` in the browser console shows the playback position.
+
+Checks: the live averaged beat of ECG 1737 matches its data file (PR 180 vs 180 ms, QRS-T angle 71.7 vs 71.5°),
+and the pipeline runs about 45x faster than real time. The AI reading from the 500 Hz file, resampled to 100 Hz,
+differs from the 100 Hz file's by up to 0.19 in probability, because PTB-XL made its 100 Hz files with its own
+resampling. Replays loop every 10 s, so there's a small jump at the seam.
 
 ## compare.html
 
@@ -150,6 +179,7 @@ python train_cnn.py               # neural network, ~35 min on a laptop CPU
 python train_cnn.py --test        # score the test fold, once
 python train_location.py --test   # MI location model (needs the feature cache), ~1 min
 python make_demo_data.py          # all viewer data files with AI readings
+python live_server.py             # live mode on http://localhost:8766/viewer.html?live=1
 ```
 
 A local server is needed because browsers block ES modules on `file://` pages. Single records:
