@@ -7,7 +7,7 @@ An ECG isn't a picture of the heart: it's 12 one-dimensional "shadows" (projecti
 - Works on a **synthetic** normal heart (no download needed)
 - Works on **real ECGs** from the PTB-XL dataset (PhysioNet)
 - **Two AI models** reading 5 diagnosis groups: a measurement model (test macro AUC 0.920) and a 1D ResNet on the raw signal (0.928), with "what drove it" shown on the 3D loop
-- **Anatomical 3D heart** that glows where the electrical wave is heading, and shades the likely heart attack wall when an MI is flagged
+- **A real heart in 3D**: the average healthy adult heart from 19 CT scans, with a simulated activation wave that sweeps the atria during P and the ventricles during QRS (normal, or a left/right bundle branch block pattern), timed to each ECG; the likely heart attack wall is shaded when an MI is flagged
 - **Live mode**: stream an ECG into the viewer as if from a recording device (`python live_server.py`), with the vitals and both AI models updating as it plays
 - **Compare normal vs abnormal** hearts (old heart attacks, bundle branch blocks) side by side: `compare.html`
 
@@ -54,5 +54,7 @@ Models and their results are in `models/`. See the [code walkthrough](docs/04-co
 ## Data
 
 The ECG in `ptbxl/` is from **PTB-XL** (Wagner et al., 2020), available on PhysioNet under CC BY 4.0: https://physionet.org/content/ptb-xl/1.0.3/
+
+The heart shape in `assets/heart_mesh.json` is derived from the average four-chamber heart of Rodero, Strocchi et al. (2021), "Virtual cohort of extreme and average four-chamber heart meshes from statistical shape model", Zenodo, https://doi.org/10.5281/zenodo.4593739, CC BY 4.0 (simplified and with a simulated activation wave added by `build_heart_mesh.py`).
 
 Not a medical device. For learning only.

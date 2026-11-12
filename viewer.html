@@ -86,6 +86,7 @@
           <span><i style="color:var(--t);background:var(--t)"></i>T wave</span>
           <span>Lead lines: <b style="color:var(--pos)">toward</b> / <b style="color:var(--neg)">away</b></span>
         </div>
+        <p class="note" id="waveNote" style="margin:4px 0 0;flex-basis:100%"></p>
         <div class="play-row">
           <button class="btn primary" id="play" type="button">Pause</button>
           <select class="select" id="speed" aria-label="Playback speed">
@@ -96,7 +97,7 @@
           </select>
           <label class="toggle"><input type="checkbox" id="showLeads" checked> Leads</label>
           <label class="toggle"><input type="checkbox" id="showHeart" checked> Heart</label>
-          <label class="toggle"><input type="checkbox" id="showGlow" checked> Glow</label>
+          <label class="toggle"><input type="checkbox" id="showGlow" checked> Wave</label>
         </div>
       </div>
     </div>
@@ -113,7 +114,7 @@
   </section>
 
   <p class="note" style="margin-top:14px">For learning only. This is not a medical device and its readings are not diagnoses.
-    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0. Drag the 3D view to rotate, scroll to zoom.</p>
+    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0. Heart anatomy: average of 19 healthy adult hearts from CT, <a href="https://doi.org/10.5281/zenodo.4593739">Rodero, Strocchi et al. 2021</a>, CC BY 4.0. Drag the 3D view to rotate, scroll to zoom.</p>
 </div>
 
 <script type="importmap">
@@ -126,6 +127,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createHeart } from "./heart_model.js";
+import { loadRealHeart } from "./heart_real.js";
 
 const UI = window.HeartUI;
 const $ = id => document.getElementById(id);
@@ -247,6 +249,47 @@ function renderVitals() {
 renderVitals();
 
 // ---------------------------------------------------------------------------
+// Activation wave on the real heart: which conduction pattern, and where in each phase we are.
+// ---------------------------------------------------------------------------
+const SCENARIO_TEXT = { normal: "normal conduction", lbbb: "a pattern like left bundle branch block",
+                        rbbb: "a pattern like right bundle branch block" };
+let phaseMs = { 1: 100, 2: 90, 3: 240 };
+function setupWave() {
+  const B = D.beat;
+  if (B) {
+    for (const ph of [1, 2, 3]) {
+      const n = B.phase.filter(p => p === ph).length;
+      if (n > 2) phaseMs[ph] = (n / D.fs) * 1000;
+    }
+  }
+  if (!heart.real) return;
+  // Wide QRS (>= 120 ms): a bundle branch block pattern; the last 30 ms of the QRS points right in RBBB.
+  let scenario = "normal";
+  if (B && B.stats.qrsMs >= 120) {
+    const q = B.phase.map((p, k) => (p === 2 ? k : -1)).filter(k => k >= 0);
+    const tail = q.slice(-Math.max(1, Math.round(0.03 * D.fs)));
+    const x = tail.reduce((s, k) => s + B.vector[0][k], 0) / tail.length; // Frank x: + = patient's left
+    scenario = x < 0 ? "rbbb" : "lbbb";
+  }
+  heart.setScenario(scenario);
+  $("waveNote").innerHTML = `Simulated activation wave on a real heart shape (average of 19 healthy adults' CT scans), `
+    + `showing ${SCENARIO_TEXT[scenario]}, timed to this ECG's P, QRS and T. It illustrates the sequence; it is not this patient's measured activation.`;
+}
+
+/** Wave state for sample i: which phase, and how far through it (0 = start, 1 = end). */
+function waveAt(i) {
+  const ph = phaseAt(i), limit = Math.max(off(), i - Math.round(1.5 * D.fs));
+  let j = i;
+  while (j > limit && phaseAt(j - 1) === ph) j--;
+  const ms = ((i - j) / D.fs) * 1000;
+  if (ph > 0) return { mode: ph, progress: ms / phaseMs[ph] };
+  // Between waves: right after a QRS (the ST segment) the ventricles are still all activated.
+  let k = j - 1;
+  while (k > limit && phaseAt(k) === 0) k--;
+  return phaseAt(k) === 2 ? { mode: 2, progress: 1.5 } : { mode: 0, progress: 0 };
+}
+
+// ---------------------------------------------------------------------------
 // 3D scene
 // ---------------------------------------------------------------------------
 const canvas = $("scene");
@@ -276,8 +319,15 @@ rescale();
 const toScene = (x, y, z) => new THREE.Vector3(x, -y, -z); // Frank (left, feet, back) -> screen
 const vecAt = a => { const i = a - off(); return toScene(D.vector[0][i] ?? 0, D.vector[1][i] ?? 0, D.vector[2][i] ?? 0).multiplyScalar(SCALE); };
 
-// Schematic anatomical heart (heart_model.js): glows where the wave is heading, can shade an MI site.
-const heart = createHeart(THREE);
+// The heart: a real CT-derived heart with a simulated activation wave (heart_real.js), or, if that
+// file can't load, the schematic one (heart_model.js), which glows where the heart vector points.
+let heart;
+try {
+  heart = await loadRealHeart(THREE);
+} catch (err) {
+  console.warn("Real heart unavailable, using the schematic one:", err);
+  heart = createHeart(THREE);
+}
 scene.add(heart.group);
 $("showHeart").addEventListener("change", e => { heart.group.visible = e.target.checked; });
 $("showGlow").addEventListener("change", e => heart.setGlow(e.target.checked));
@@ -415,7 +465,7 @@ function update3D(i, now) {
     const k = 0.75 + 0.25 * Math.sin(now / 320);
     loopParts[highlightPhase].forEach(({ glow }) => { glow.material.opacity = k; });
   }
-  heart.update(v, len / 2, phaseAt(i), PHASE_COLORS[phaseAt(i)], now);
+  heart.update(v, len / 2, phaseAt(i), PHASE_COLORS[phaseAt(i)], now, waveAt(i));
 }
 
 // ---------------------------------------------------------------------------
@@ -577,6 +627,7 @@ function renderAI() {
   });
 }
 renderAI();
+setupWave();
 
 // ---------------------------------------------------------------------------
 // Playback
@@ -664,6 +715,7 @@ if (D.live) {
     rescale();
     rescaleLeads();
     renderVitals();
+    setupWave();
     buildLoop();
     colourLoop();
     renderAI(); // re-applies the highlight to the rebuilt loop

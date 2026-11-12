@@ -89,7 +89,7 @@
 
   <p class="note" style="margin-top:14px">Each condition is one patient, so some differences are just normal variation between people. The 3D vector is estimated with
     the Kors matrix, which is fitted to average adults. For learning only. This is not a medical device.
-    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0.</p>
+    Data: PTB-XL (Wagner et al., 2020), PhysioNet, CC BY 4.0. Heart anatomy: average of 19 healthy adult hearts from CT, <a href="https://doi.org/10.5281/zenodo.4593739">Rodero, Strocchi et al. 2021</a>, CC BY 4.0.</p>
 </div>
 
 <script type="importmap">
@@ -102,6 +102,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createHeart } from "./heart_model.js";
+import { loadRealHeart } from "./heart_real.js";
 
 // ---------------------------------------------------------------------------
 // Records. Each file is made by ecg_to_vcg.py; the text explains what to look for.
@@ -262,8 +263,15 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.2);
 sun.position.set(3, 4, 5);
 scene.add(sun);
 
-// Schematic heart (heart_model.js), quieter than in the viewer: two loops share it, so no beat glow.
-const heart = createHeart(THREE);
+// The real CT-derived heart (heart_real.js), or the schematic one if it can't load; quieter than in
+// the viewer: two loops share it, so no activation wave here.
+let heart;
+try {
+  heart = await loadRealHeart(THREE);
+} catch (err) {
+  console.warn("Real heart unavailable, using the schematic one:", err);
+  heart = createHeart(THREE);
+}
 heart.setGlow(false);
 const themeHeart = () => {
   heart.setTheme({ base: new THREE.Color(css("--heart")), rim: new THREE.Color(css("--accent-2")),

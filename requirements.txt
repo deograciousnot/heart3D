@@ -3,3 +3,5 @@ scipy
 wfdb
 scikit-learn  # train_features.py, predict.py
 torch         # train_cnn.py, predict.py (CPU build is enough)
+pandas              # build_heart_mesh.py (reads the source mesh)
+fast-simplification # build_heart_mesh.py (simplifies it for the browser)

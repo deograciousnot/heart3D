@@ -6,7 +6,10 @@ heart3D/
 ├── viewer.html          # live viewer: 3D vector, vitals, AI reading, 12-lead monitor sweep
 ├── compare.html         # normal vs abnormal: averaged beats side by side
 ├── style.css, ui.js     # shared look (clinical glass, dark + light theme) and page helpers
-├── heart_model.js       # schematic anatomical heart for both 3D views: beat glow + MI wall shading
+├── heart_real.js        # the real CT-derived heart with the simulated activation wave (both 3D views)
+├── heart_model.js       # schematic heart, the fallback if assets/heart_mesh.json can't load
+├── build_heart_mesh.py  # builds assets/heart_mesh.json from the source mesh + simulates activation
+├── assets/heart_mesh.json  # generated: real heart surfaces, activation times, wall labels (0.9 MB)
 ├── download_ptbxl.py    # downloads the full PTB-XL dataset (resumable)
 ├── ptbxl_data.py        # PTB-XL labels (5 superclasses) and train / validation / test splits
 ├── train_features.py    # model 1: 81 median-beat measurements + gradient-boosted trees
@@ -70,6 +73,35 @@ measurements) and, with `--ai`, an `ai` object with both models' reading. `--lab
   and "what drove it" for the selected class. The part of the beat that drove it most glows on the 3D loop.
 - **12 leads** in a 2.5 s bedside-monitor sweep, in sync with the 3D view.
 - Theme: dark "monitor" by default, light for light-mode systems; the sun button switches and remembers.
+
+## The real heart and the activation wave
+
+**Source.** The average healthy adult heart of Rodero, Strocchi et al. (2021), built from 19 end-diastolic CT scans
+of adults with no heart disease ([Zenodo](https://doi.org/10.5281/zenodo.4593739), CC BY 4.0): a tetrahedral mesh of
+379k points and 1.77M elements, tagged by part (both ventricles, both atria, aorta, pulmonary artery, valve planes,
+vein inlets), with muscle fibre directions and universal ventricular coordinates (apex-base, inner-outer wall,
+angle around the heart, left vs right ventricle). The 58 MB download stays in the git-ignored `mesh_source/`.
+
+**`build_heart_mesh.py`** turns it into `assets/heart_mesh.json` (0.9 MB):
+
+| Step | How |
+|---|---|
+| Orient | Landmarks (apex, mitral valve, both ventricles, atria) rotate it so the apex points down, left and forward like the schematic, with the RV in front; it checks the left atrium ends up behind and the right atrium to the patient's right (2/2 pass) |
+| Simulate | Shortest travel time through the volume mesh (a simple eikonal model): 0.6 m/s along fibres, 0.25 across, 2 m/s in a fast inner layer standing in for the Purkinje network. Early sites after Durrer et al. (1970): left mid-septum, high anterior and low posterior paraseptal LV, then the anterior RV 5 ms later. Bundle branch block: the wave starts on one side only and the blocked side's network conducts partly (tuned speed) |
+| Surfaces | Outer and inner surfaces of each part, simplified to 48k triangles, carrying activation, recovery and LV wall labels (front + septum, bottom, left side, from the angle coordinate) |
+
+| Simulated | Total activation | Typical ECG duration |
+|---|---|---|
+| Normal ventricles | 79 ms | QRS 80-100 ms |
+| Left bundle branch block | 150 ms | QRS 140-160 ms |
+| Right bundle branch block | 135 ms | QRS 120-140 ms |
+| Atria from the sinus node | 88 ms | P 80-110 ms |
+
+**In the viewer** (`heart_real.js`): during P the front sweeps the atria, during QRS the ventricles (tissue behind
+it stays lit through the ST segment), during T the ventricles recover, outer wall and base first. Each wave is
+stretched to the measured duration of that phase in the ECG shown. The pattern is chosen from the ECG: QRS of
+120 ms or more is shown as a bundle branch block, right if the last 30 ms of the QRS points to the patient's right,
+otherwise left. It's a plausible sequence on an average anatomy, not this patient's measured activation.
 
 ## live_server.py (live mode)
 
@@ -192,6 +224,7 @@ A local server is needed because browsers block ES modules on `file://` pages. S
 - Frontal axis is unreliable when limb-lead voltage is low (records 00001 and 00903).
 - Each comparison condition is one patient, so some differences are between-person variation, not the disease.
 - Kors is fitted to average adults; per person it's an estimate.
-- The heart is a schematic shape, not this patient's anatomy, and its walls are approximate regions.
+- The heart is an average adult anatomy, not this patient's, and its walls are approximate regions.
+- The activation wave is simulated with a simplified model and only three conduction patterns.
 - The models are trained and tested on one dataset (PTB-XL, German hospitals, 1989-1996 devices); performance on
   other populations and machines is unknown.

@@ -11,3 +11,7 @@ ptbxl/*.csv
 *.part
 ptbxl/*.npz
 ptbxl/*.npy
+
+# Source heart mesh download (build_heart_mesh.py makes the small web version in assets/)
+mesh_source/
+.playwright-mcp/
