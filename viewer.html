@@ -4,8 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>heart3D Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23ff6b6b%22 d=%22M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%20fill%3D%22none%22%20color%3D%22%23c62828%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23f5efe6%22/%3E%3Cpath%20d%3D%22M5%2016h22M16%205v22%22%20stroke%3D%22currentColor%22%20stroke-opacity%3D%22.3%22%20stroke-width%3D%221%22/%3E%3Cpath%20d%3D%22M16%2016C17.5%2021.5%2025.5%2025%2027.6%2020.2C29.4%2015.9%2022.4%2012.6%2016%2016Z%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222.1%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M16%2016C17.6%2018.6%2021.4%2019.6%2022%2018.2C22.6%2016.9%2019.4%2015.7%2016%2016Z%22%20stroke%3D%22currentColor%22%20stroke-opacity%3D%22.6%22%20stroke-width%3D%221.4%22/%3E%3Ccircle%20cx%3D%2227.4%22%20cy%3D%2220.6%22%20r%3D%222%22%20fill%3D%22currentColor%22/%3E%3C/svg%3E">
 <script src="ui.js"></script>
 <style>
   .head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin: 4px 2px 14px; }
@@ -22,8 +25,8 @@
   .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 10px currentColor; }
   .play-row { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
-  #strips { width: 100%; height: 400px; display: block; }
-  @media (max-width: 600px) { #strips { height: 560px; } }
+  #strips { width: 100%; height: 460px; display: block; border-radius: 4px; }
+  @media (max-width: 700px) { #strips { height: 640px; } }
   .ai-empty { color: var(--muted); font-size: 14px; }
   .prob { cursor: pointer; border-radius: 10px; padding: 4px 6px; margin: 0 -6px; transition: background .2s; }
   .prob:hover, .prob[aria-current="true"] { background: var(--glass-strong); }
@@ -47,8 +50,8 @@
 <div class="wrap">
   <header class="topbar glass rise">
     <a class="brand" href="viewer.html" aria-label="heart3D home">
-      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z"/><path d="M3.5 12h4l1.5-3 2.5 6 2-4.5 1.2 1.5h5.8" fill="none" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      <span><span class="brand-name">heart3D</span> <span class="brand-tag">ECG to 3D heart vector</span></span>
+      <span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 16h22M16 5v22" stroke="currentColor" stroke-opacity=".3" stroke-width="1"/><path d="M16 16C17.5 21.5 25.5 25 27.6 20.2C29.4 15.9 22.4 12.6 16 16Z" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16 16C17.6 18.6 21.4 19.6 22 18.2C22.6 16.9 19.4 15.7 16 16Z" stroke="currentColor" stroke-opacity=".6" stroke-width="1.4"/><circle cx="27.4" cy="20.6" r="2" fill="currentColor"/></svg></span>
+      <span><span class="brand-name">heart3D</span> <span class="brand-tag">12-lead → 3D vector</span></span>
     </a>
     <nav class="nav"><a href="viewer.html" aria-current="page">Viewer</a><a href="compare.html">Compare</a></nav>
     <button class="icon-btn" id="themeToggle" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></button>
@@ -109,7 +112,7 @@
   </section>
 
   <section class="glass card rise" style="--d:.38s;margin-top:14px">
-    <div class="card-title">12-lead ECG <span class="spacer"></span><span class="note" style="text-transform:none;letter-spacing:0;font-weight:400">2.5 s sweep, in sync with the 3D view</span></div>
+    <div class="card-title">12-lead ECG <span class="spacer"></span><span class="note mono" id="stripsNote" style="text-transform:none;letter-spacing:0;font-weight:400"></span></div>
     <canvas id="strips" aria-label="12-lead ECG strips"></canvas>
   </section>
 
@@ -341,7 +344,7 @@ function makeLabel(text) {
   sprite.userData.draw = () => {
     const g = c.getContext("2d");
     g.clearRect(0, 0, 256, 64);
-    g.font = "600 32px Inter, system-ui, sans-serif";
+    g.font = "600 32px IBM Plex Mono, ui-monospace, monospace";
     g.textAlign = "center"; g.textBaseline = "middle";
     g.fillStyle = UI.token("--muted");
     g.fillText(text, 128, 32);
@@ -469,11 +472,16 @@ function update3D(i, now) {
 }
 
 // ---------------------------------------------------------------------------
-// 12-lead monitor sweep: new trace writes over the old one, with a gap, like a bedside monitor.
+// 12-lead ECG on paper. Laid out like a printed 12-lead: four columns (I-III, aVR-aVF, V1-V3, V4-V6)
+// with a lead II rhythm strip underneath; 1 mm / 5 mm grid at the standard 25 mm/s. Gain is the
+// standard 10 mm/mV unless the waves wouldn't fit (then 5 or 2.5, as an ECG machine does), always
+// stated and shown by a 1 mV calibration pulse. It sweeps like a monitor: new trace over the old.
+// Calipers on the rhythm strip mark PR and QRS on the latest beat.
 // ---------------------------------------------------------------------------
 const strips = $("strips");
 const sg = strips.getContext("2d");
-const WINDOW = 2.5;
+const MM_PER_S = 25, CELL_S = 2.5, RHYTHM_S = 10, GAINS = [20, 10, 5, 2.5];
+const MONO = "IBM Plex Mono, ui-monospace, monospace";
 let maxLead = 1;
 function rescaleLeads() {
   let m = 0;
@@ -483,50 +491,131 @@ function rescaleLeads() {
 rescaleLeads();
 let lastI = 0;
 
+function paperGrid(w, h, mm) {
+  const line = (step, colour) => {
+    sg.strokeStyle = colour;
+    sg.lineWidth = 1;
+    sg.beginPath();
+    for (let x = 0; x <= w; x += step) { const px = Math.round(x) + 0.5; sg.moveTo(px, 0); sg.lineTo(px, h); }
+    for (let y = 0; y <= h; y += step) { const py = Math.round(y) + 0.5; sg.moveTo(0, py); sg.lineTo(w, py); }
+    sg.stroke();
+  };
+  if (mm >= 2.5) line(mm, UI.token("--grid-minor"));
+  line(mm * 5, UI.token("--grid-major"));
+}
+
+/** One lead swept across [x0, x0 + width] over a window of `win` samples, baseline at `mid`. */
+function sweep(k, i, x0, width, mid, gainPx, win) {
+  const start = Math.floor(i / win) * win, gap = Math.round(0.08 * D.fs);
+  const yAt = j => mid - (leadAt(k, j) ?? 0) * gainPx;
+  const xCur = j => x0 + ((j - start) / win) * width, xPrev = j => x0 + ((j - start + win) / win) * width;
+  const ink = UI.token("--trace");
+  if (start > off()) {                                // the previous sweep, after the write head and a small gap
+    sg.strokeStyle = UI.token("--trace-2"); sg.globalAlpha = 0.45; sg.lineWidth = 1; sg.beginPath();
+    let first = true;
+    for (let j = i + gap - win; j < start; j++) {
+      if (j < off()) continue;
+      first ? sg.moveTo(xPrev(j), yAt(j)) : sg.lineTo(xPrev(j), yAt(j));
+      first = false;
+    }
+    sg.stroke(); sg.globalAlpha = 1;
+  }
+  sg.strokeStyle = ink; sg.lineWidth = 1.35; sg.lineJoin = "round";
+  if (UI.isDark()) { sg.shadowColor = ink; sg.shadowBlur = 5; }
+  sg.beginPath();
+  const from = Math.max(start, off());
+  for (let j = from; j <= i; j++) j === from ? sg.moveTo(xCur(j), yAt(j)) : sg.lineTo(xCur(j), yAt(j));
+  sg.stroke();
+  sg.shadowBlur = 0;
+  sg.fillStyle = ink;
+  sg.beginPath(); sg.arc(xCur(i), yAt(i), 2.2, 0, Math.PI * 2); sg.fill();
+  return { start, xCur };
+}
+
+/** The 1 mV calibration pulse that starts every printed row: 1 mm flat, up 1 mV for 5 mm (0.2 s), down, 1 mm flat. */
+function calibration(x, mid, gainPx, mm) {
+  sg.strokeStyle = UI.token("--trace"); sg.globalAlpha = 0.75; sg.lineWidth = 1.2; sg.beginPath();
+  sg.moveTo(x, mid); sg.lineTo(x + mm, mid); sg.lineTo(x + mm, mid - gainPx);
+  sg.lineTo(x + 6 * mm, mid - gainPx); sg.lineTo(x + 6 * mm, mid); sg.lineTo(x + 7 * mm, mid);
+  sg.stroke(); sg.globalAlpha = 1;
+}
+
+function label(text, x, y, colour, size = 12, weight = 600, align = "left") {
+  sg.font = `${weight} ${size}px ${MONO}`;
+  sg.textBaseline = "middle"; sg.textAlign = align;
+  // a paper-coloured backing keeps the label readable over the grid and trace
+  const wText = sg.measureText(text).width, x0 = align === "left" ? x : align === "center" ? x - wText / 2 : x - wText;
+  sg.fillStyle = UI.token("--glass"); sg.globalAlpha = 0.85;
+  sg.fillRect(x0 - 2, y - size * 0.62, wText + 4, size * 1.24);
+  sg.globalAlpha = 1; sg.fillStyle = colour;
+  sg.fillText(text, x, y);
+  sg.textAlign = "left";
+}
+
+/** PR and QRS calipers on the latest complete beat in view, labelled with the measured values. */
+function calipers(k, i, sweepInfo, mid, rowTop) {
+  const S = D.beat?.stats;
+  if (!S) return;
+  const { start, xCur } = sweepInfo, lo = Math.max(start, off());
+  let q = -1, e = -1;                                         // QRS onset and end of the latest complete QRS
+  for (let j = i; j > lo; j--) {
+    if (phaseAt(j) !== 2 && phaseAt(j - 1) === 2) e = j;
+    if (e > 0 && phaseAt(j) === 2 && phaseAt(j - 1) !== 2) { q = j; break; }
+  }
+  if (q < 0) return;
+  let p = -1;                                                  // P onset before it, if a P wave was found
+  for (let j = q - 1; j > Math.max(lo, q - 0.45 * D.fs); j--) {
+    if (phaseAt(j) === 1 && phaseAt(j - 1) !== 1) { p = j; break; }
+  }
+  const y = rowTop + 40, red = UI.token("--accent"), tick = (x) => { sg.moveTo(x, y - 5); sg.lineTo(x, y + 5); };
+  sg.strokeStyle = red; sg.lineWidth = 1.2; sg.beginPath();
+  if (p > 0 && S.prMs != null) { sg.moveTo(xCur(p), y); sg.lineTo(xCur(q), y); tick(xCur(p)); }
+  sg.moveTo(xCur(q), y); sg.lineTo(xCur(e), y); tick(xCur(q)); tick(xCur(e));
+  sg.stroke();
+  // faint guides from the caliper down to the trace
+  sg.setLineDash([2, 3]); sg.globalAlpha = 0.5; sg.beginPath();
+  for (const j of (p > 0 ? [p, q, e] : [q, e])) { sg.moveTo(xCur(j), y + 5); sg.lineTo(xCur(j), mid); }
+  sg.stroke(); sg.setLineDash([]); sg.globalAlpha = 1;
+  if (p > 0 && S.prMs != null) label(`PR ${Math.round(S.prMs)}`, (xCur(p) + xCur(q)) / 2, y - 11, red, 10.5, 500, "center");
+  label(`QRS ${Math.round(S.qrsMs)}`, xCur(e) + 6, y, red, 10.5, 500);
+}
+
 function drawStrips(i, force) {
   const w = strips.clientWidth, h = strips.clientHeight, dpr = window.devicePixelRatio;
   if (strips.width !== Math.round(w * dpr) || force) { strips.width = Math.round(w * dpr); strips.height = Math.round(h * dpr); }
   sg.setTransform(dpr, 0, 0, dpr, 0, 0);
   sg.clearRect(0, 0, w, h);
-  const narrow = w < 560, cols = narrow ? 1 : 2, rows = 12 / cols, cw = w / cols, rh = h / rows;
-  const winLen = Math.round(WINDOW * D.fs), start = Math.floor(i / winLen) * winLen, gap = Math.round(0.08 * D.fs);
-  const trace = UI.token("--trace"), faint = UI.token("--trace-2"), grid = UI.token("--grid");
+  const narrow = w < 700;
+  const cols = narrow ? 1 : 4, rows = narrow ? 12 : 3, rhythm = !narrow;
+  const cellW = w / cols, rh = h / (rows + (rhythm ? 1 : 0));
+  const mm = cellW / (CELL_S * MM_PER_S);                      // pixels per millimetre of paper
+  // Like a printout, big waves may run a little into the next row; only reduce gain when they'd run far over.
+  const gain = GAINS.find(g => maxLead * g * mm <= 0.75 * rh) ?? GAINS.at(-1);
+  const gainPx = gain * mm;                                    // pixels per millivolt
+  paperGrid(w, h, mm);
+  const cellWin = Math.round(CELL_S * D.fs);
+
   for (let k = 0; k < 12; k++) {
-    const cx = Math.floor(k / rows) * cw, cy = (k % rows) * rh, mid = cy + rh / 2, x0 = cx + 40, plotW = cw - 50;
-    // grid dots
-    sg.fillStyle = grid;
-    for (let gx = x0; gx < x0 + plotW; gx += 14) for (let gy = cy + 6; gy < cy + rh - 2; gy += 14) sg.fillRect(gx, gy, 1.2, 1.2);
+    const col = narrow ? 0 : Math.floor(k / 3), row = narrow ? k : k % 3;
+    const cx = col * cellW, cy = row * rh, mid = cy + rh * 0.55;
+    const info = sweep(k, i, cx, cellW, mid, gainPx, cellWin);
+    if (col === 0) calibration(cx + 2, mid, gainPx, mm);
+    else { sg.strokeStyle = UI.token("--trace"); sg.lineWidth = 1.2; sg.beginPath(); sg.moveTo(cx + 0.5, mid - 7); sg.lineTo(cx + 0.5, mid + 7); sg.stroke(); }
     const val = leadAt(k, i) ?? 0;
-    sg.fillStyle = val > 0.08 ? UI.token("--pos") : val < -0.08 ? UI.token("--neg") : UI.token("--muted");
-    sg.font = "600 12.5px Inter, system-ui, sans-serif";
-    sg.textBaseline = "middle";
-    sg.fillText(D.leadNames[k], cx + 6, mid);
-    const yScale = (rh * 0.44) / maxLead, xAt = j => x0 + ((j % winLen) / winLen) * plotW;
-    const yAt = j => mid - (leadAt(k, j) ?? 0) * yScale;
-    // previous sweep, after the write head + gap
-    if (start >= winLen) {
-      sg.strokeStyle = faint; sg.globalAlpha = 0.35; sg.lineWidth = 1.1; sg.beginPath();
-      let first = true;
-      for (let q = i - start + gap; q < winLen; q++) {
-        const jj = start - winLen + q;
-        if (jj < off()) continue; // live: older than the buffer
-        first ? sg.moveTo(xAt(jj), yAt(jj)) : sg.lineTo(xAt(jj), yAt(jj));
-        first = false;
-      }
-      sg.stroke(); sg.globalAlpha = 1;
-    }
-    // current sweep
-    sg.strokeStyle = trace; sg.lineWidth = 1.5; sg.lineJoin = "round";
-    if (UI.isDark()) { sg.shadowColor = trace; sg.shadowBlur = 6; }
-    sg.beginPath();
-    const from = Math.max(start, off());
-    for (let j = from; j <= i; j++) j === from ? sg.moveTo(xAt(j), yAt(j)) : sg.lineTo(xAt(j), yAt(j));
-    sg.stroke();
-    sg.shadowBlur = 0;
-    // write head
-    sg.fillStyle = trace;
-    sg.beginPath(); sg.arc(xAt(i), yAt(i), 2.4, 0, Math.PI * 2); sg.fill();
+    label(D.leadNames[k], cx + (col === 0 ? 7 * mm + 8 : 6), cy + 12,
+          val > 0.08 ? UI.token("--pos") : val < -0.08 ? UI.token("--neg") : UI.token("--muted"));
+    if (narrow && k === 1) calipers(1, i, info, mid, cy);
   }
+  if (rhythm) {                                                 // lead II rhythm strip, 10 s across the full width
+    const cy = rows * rh, mid = cy + rh * 0.58;
+    sg.strokeStyle = UI.token("--glass-border"); sg.lineWidth = 1; sg.beginPath(); sg.moveTo(0, cy + 0.5); sg.lineTo(w, cy + 0.5); sg.stroke();
+    const info = sweep(1, i, 0, w, mid, gainPx, Math.round(RHYTHM_S * D.fs));
+    calibration(2, mid, gainPx, mm);
+    label("II", 7 * mm + 8, cy + 12, UI.token("--muted"));
+    calipers(1, i, info, mid, cy);
+  }
+  const note = `25 mm/s · ${gain} mm/mV${gain !== 10 ? " (reduced to fit)" : ""}`;
+  if ($("stripsNote").textContent !== note) $("stripsNote").textContent = note;
 }
 
 // ---------------------------------------------------------------------------
@@ -609,7 +698,7 @@ function renderAI() {
   }
 
   body.innerHTML = `${seg}
-    <div class="model-meta">${M.testAuc ? `Test macro AUC ${M.testAuc.toFixed(3)} on 2,158 unseen ECGs. ` : ""}Orange bars cross the flag line.</div>
+    <div class="model-meta">${M.testAuc ? `Test macro AUC ${M.testAuc.toFixed(3)} on 2,158 unseen ECGs. ` : ""}Red bars cross the flag line.</div>
     <div class="probs">${rows}</div>
     <p class="focus-title">What drove <b>${AI.classNames[focusClass]}</b> (${pct(M.probs[focusClass])})</p>
     <div class="note">Points the probability drops when that part of the beat is made typical:</div>

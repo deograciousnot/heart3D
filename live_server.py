@@ -245,6 +245,17 @@ class Handler(SimpleHTTPRequestHandler):
             pass  # browser closed the page
 
 
+class QuietServer(ThreadingHTTPServer):
+    """Browsers close idle connections all the time; that's not an error worth a traceback."""
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        import sys
+        if isinstance(sys.exc_info()[1], (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--record", type=int, default=DEFAULT_RECORD, help="PTB-XL ecg_id to replay (default 1737)")
@@ -252,8 +263,7 @@ def main():
     args = parser.parse_args()
     Handler.default_record = args.record
     ReplaySource(args.record)  # fail early if the record isn't on disk
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    server.daemon_threads = True
+    server = QuietServer(("127.0.0.1", args.port), Handler)
 
     def warm_up():  # load PyTorch and the models now, so the first AI reading isn't 15 s late
         from predict import _load

@@ -4,8 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>heart3D Compare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23ff6b6b%22 d=%22M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%20fill%3D%22none%22%20color%3D%22%23c62828%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23f5efe6%22/%3E%3Cpath%20d%3D%22M5%2016h22M16%205v22%22%20stroke%3D%22currentColor%22%20stroke-opacity%3D%22.3%22%20stroke-width%3D%221%22/%3E%3Cpath%20d%3D%22M16%2016C17.5%2021.5%2025.5%2025%2027.6%2020.2C29.4%2015.9%2022.4%2012.6%2016%2016Z%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222.1%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M16%2016C17.6%2018.6%2021.4%2019.6%2022%2018.2C22.6%2016.9%2019.4%2015.7%2016%2016Z%22%20stroke%3D%22currentColor%22%20stroke-opacity%3D%22.6%22%20stroke-width%3D%221.4%22/%3E%3Ccircle%20cx%3D%2227.4%22%20cy%3D%2220.6%22%20r%3D%222%22%20fill%3D%22currentColor%22/%3E%3C/svg%3E">
 <script src="ui.js"></script>
 <style>
   /* Two series on this page: the normal heart (cool grey-blue) and the selected condition (warm coral). */
@@ -36,8 +39,8 @@
 <div class="wrap">
   <header class="topbar glass rise">
     <a class="brand" href="viewer.html" aria-label="heart3D home">
-      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1.1 4.2 2.3h2.4c.8-1.2 2.2-2.3 4.2-2.3 3.6 0 5.7 3.6 4.2 7.1C19.5 16.4 12 21 12 21z"/><path d="M3.5 12h4l1.5-3 2.5 6 2-4.5 1.2 1.5h5.8" fill="none" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      <span><span class="brand-name">heart3D</span> <span class="brand-tag">ECG to 3D heart vector</span></span>
+      <span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 16h22M16 5v22" stroke="currentColor" stroke-opacity=".3" stroke-width="1"/><path d="M16 16C17.5 21.5 25.5 25 27.6 20.2C29.4 15.9 22.4 12.6 16 16Z" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16 16C17.6 18.6 21.4 19.6 22 18.2C22.6 16.9 19.4 15.7 16 16Z" stroke="currentColor" stroke-opacity=".6" stroke-width="1.4"/><circle cx="27.4" cy="20.6" r="2" fill="currentColor"/></svg></span>
+      <span><span class="brand-name">heart3D</span> <span class="brand-tag">12-lead → 3D vector</span></span>
     </a>
     <nav class="nav"><a href="viewer.html">Viewer</a><a href="compare.html" aria-current="page">Compare</a></nav>
     <button class="icon-btn" id="themeToggle" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></button>
@@ -45,8 +48,8 @@
 
   <section class="rise" style="--d:.05s">
     <h1>Normal vs abnormal heart vector</h1>
-    <p class="sub">One averaged heartbeat per patient, from real PTB-XL ECGs. <b style="color:var(--normal)">Grey-blue</b> is a normal heart,
-      <b style="color:var(--cond)">coral</b> is the selected condition. Beats are lined up on the R peak, so the moving dots show both hearts at the same moment.</p>
+    <p class="sub">One averaged heartbeat per patient, from real PTB-XL ECGs. <b style="color:var(--normal)">Grey</b> is a normal heart,
+      <b style="color:var(--cond)">red</b> is the selected condition. Beats are lined up on the R peak, so the moving dots show both hearts at the same moment.</p>
     <div class="pills picker" id="picker" role="group" aria-label="Condition to compare"></div>
   </section>
 
@@ -238,7 +241,7 @@ function renderInfo() {
       <thead><tr><th></th><th>Normal</th><th>${current.name}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="note">Coral values are outside the usual adult range. PTB-XL records ${normal.record} and ${current.record}.
+    <p class="note">Red values are outside the usual adult range. PTB-XL records ${normal.record} and ${current.record}.
       <a href="viewer.html?data=${current.file}">Open in the viewer</a></p>
     ${aiSection()}
     ${caveats}`;
@@ -290,7 +293,7 @@ function makeLabel(text) {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 64;
   const g = c.getContext("2d");
-  g.font = "600 34px Inter, system-ui, sans-serif";
+  g.font = "600 34px IBM Plex Mono, ui-monospace, monospace";
   g.textAlign = "center"; g.textBaseline = "middle";
   g.fillStyle = "#8ea7b4"; g.fillText(text, 128, 32);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
@@ -371,9 +374,23 @@ function drawPlane(p, i) {
   const cx = w / 2, cy = h / 2, s = (Math.min(w, h) / 2 - 30) / MAX_MAG;
   const at = v => [cx + p.x(v) * s, cy + p.y(v) * s];
 
-  g.strokeStyle = css("--grid"); g.lineWidth = 1;
+  // Graph paper in millivolts, centred on the origin: fine lines every 0.1 mV, bold every 0.5 mV.
+  const gridLines = (step, colour) => {
+    g.strokeStyle = colour; g.lineWidth = 1; g.beginPath();
+    for (let d = 0; d <= w; d += step) for (const x of [cx + d, cx - d]) { g.moveTo(Math.round(x) + 0.5, 0); g.lineTo(Math.round(x) + 0.5, h); }
+    for (let d = 0; d <= h; d += step) for (const y of [cy + d, cy - d]) { g.moveTo(0, Math.round(y) + 0.5); g.lineTo(w, Math.round(y) + 0.5); }
+    g.stroke();
+  };
+  if (0.1 * s >= 4) gridLines(0.1 * s, css("--grid-minor"));
+  gridLines(0.5 * s, css("--grid-major"));
+  g.strokeStyle = css("--muted"); g.lineWidth = 1.2;
   g.beginPath(); g.moveTo(18, cy); g.lineTo(w - 18, cy); g.moveTo(cx, 18); g.lineTo(cx, h - 18); g.stroke();
-  g.fillStyle = css("--muted"); g.font = "12px Inter, system-ui, sans-serif";
+  // scale bar: 0.5 mV
+  g.strokeStyle = css("--text"); g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(10, h - 12); g.lineTo(10 + 0.5 * s, h - 12); g.moveTo(10, h - 16); g.lineTo(10, h - 8); g.moveTo(10 + 0.5 * s, h - 16); g.lineTo(10 + 0.5 * s, h - 8); g.stroke();
+  g.fillStyle = css("--muted"); g.font = "11px IBM Plex Mono, ui-monospace, monospace"; g.textBaseline = "middle"; g.textAlign = "left";
+  g.fillText("0.5 mV", 14 + 0.5 * s, h - 12);
+  g.fillStyle = css("--muted"); g.font = "12px IBM Plex Mono, ui-monospace, monospace";
   g.textBaseline = "middle";
   g.textAlign = "left"; g.fillText(p.labels.left, 2, cy - 10);
   g.textAlign = "right"; g.fillText(p.labels.right, w - 2, cy - 10);
@@ -427,9 +444,17 @@ function drawLeads(i) {
     const x0 = col * cw + 30, plotW = cw - 38, mid = row * rh + rh / 2;
     const xAt = j => x0 + (j / (LEN - 1)) * plotW;
 
-    lg.strokeStyle = css("--grid"); lg.lineWidth = 1;
-    lg.beginPath(); lg.moveTo(x0, mid); lg.lineTo(x0 + plotW, mid); lg.stroke();
-    lg.fillStyle = css("--muted"); lg.font = "600 12px Inter, system-ui, sans-serif";
+    // ECG paper for this beat: the window is ~1 s, so 25 mm across; square millimetres.
+    const mmPx = plotW / ((LEN / FS) * 25), top = row * rh + 2, bottom = row * rh + rh - 2;
+    const lines = (step, colour) => {
+      lg.strokeStyle = colour; lg.lineWidth = 1; lg.beginPath();
+      for (let x = x0; x <= x0 + plotW + 0.5; x += step) { lg.moveTo(Math.round(x) + 0.5, top); lg.lineTo(Math.round(x) + 0.5, bottom); }
+      for (const dir of [1, -1]) for (let y = mid; y >= top && y <= bottom; y += dir * step) { lg.moveTo(x0, Math.round(y) + 0.5); lg.lineTo(x0 + plotW, Math.round(y) + 0.5); }
+      lg.stroke();
+    };
+    if (mmPx >= 3) lines(mmPx, css("--grid-minor"));
+    lines(mmPx * 5, css("--grid-major"));
+    lg.fillStyle = css("--muted"); lg.font = "600 12px IBM Plex Mono, ui-monospace, monospace";
     lg.textAlign = "left"; lg.textBaseline = "middle";
     lg.fillText(normal.data.leadNames[k], col * cw + 4, mid);
 

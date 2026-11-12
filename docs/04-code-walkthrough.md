@@ -5,7 +5,7 @@ heart3D/
 ├── ecg_to_vcg.py        # maths: ECG <-> 3D heart vector, median beat, measurements; writes viewer data
 ├── viewer.html          # live viewer: 3D vector, vitals, AI reading, 12-lead monitor sweep
 ├── compare.html         # normal vs abnormal: averaged beats side by side
-├── style.css, ui.js     # shared look (clinical glass, dark + light theme) and page helpers
+├── style.css, ui.js     # shared look (ECG paper / bedside monitor themes) and page helpers
 ├── heart_real.js        # the real CT-derived heart with the simulated activation wave (both 3D views)
 ├── heart_model.js       # schematic heart, the fallback if assets/heart_mesh.json can't load
 ├── build_heart_mesh.py  # builds assets/heart_mesh.json from the source mesh + simulates activation
@@ -71,8 +71,15 @@ measurements) and, with `--ai`, an `ai` object with both models' reading. `--lab
   ventricle and listed in the AI panel. "Heart" and "Glow" toggles switch these off.
 - **AI reading**: both models' probabilities for the five classes, the flag line (threshold set on validation data),
   and "what drove it" for the selected class. The part of the beat that drove it most glows on the 3D loop.
-- **12 leads** in a 2.5 s bedside-monitor sweep, in sync with the 3D view.
-- Theme: dark "monitor" by default, light for light-mode systems; the sun button switches and remembers.
+- **12 leads** laid out like a printed 12-lead: four 2.5 s columns (I-III, aVR-aVF, V1-V3, V4-V6) and a 10 s lead II
+  rhythm strip, on 1 mm / 5 mm ECG paper at 25 mm/s. Gain is the standard 10 mm/mV unless the waves would run far
+  into the next row (then 5 or 2.5 mm/mV, always stated and shown by a 1 mV calibration pulse). It sweeps like a
+  monitor, in sync with the 3D view. Calipers on the rhythm strip mark PR and QRS on the latest beat, labelled with the
+  measured values. On a phone: one column, calipers on lead II.
+- **Look**: two identities, following the system theme (the sun button switches and remembers). Light is printed ECG
+  paper: cream paper, red millimetre grid, black ink. Dark is a bedside monitor: green-black, phosphor-green trace.
+  Flat panels with hairline rules, IBM Plex Sans with Plex Mono for every number and lead name, and a
+  vectorcardiogram loop as the logo, which beats on each QRS.
 
 ## The real heart and the activation wave
 
